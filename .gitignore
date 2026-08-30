@@ -1,0 +1,4 @@
+/bin/
+*.local.yaml
+*.local.yml
+.DS_Store
