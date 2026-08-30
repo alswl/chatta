@@ -35,6 +35,15 @@ func init() {
 			File:       configFile,
 			Verbose:    verbose,
 			VerboseSet: rootCmd.PersistentFlags().Changed("verbose"),
+			Chat: config.ChatConfig{
+				Home: chatHome, Host: chatHost, Port: chatPort,
+				Channel: chatChannel, II: chatII,
+			},
+			ChatHomeSet:    chatCmd.PersistentFlags().Changed("home"),
+			ChatHostSet:    chatCmd.PersistentFlags().Changed("host"),
+			ChatPortSet:    chatCmd.PersistentFlags().Changed("port"),
+			ChatChannelSet: chatCmd.PersistentFlags().Changed("channel"),
+			ChatIISet:      chatCmd.PersistentFlags().Changed("ii"),
 		})
 		return err
 	}

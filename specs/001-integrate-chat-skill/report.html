@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Chatta 集成式 Agent Chat 规格报告">
+  <title>集成式 Agent Chat · Chatta 规格报告</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background:#f7f8fc; color:#172033; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+    html { scroll-behavior:smooth; }
+    .grid-bg { background-image:linear-gradient(rgba(37,99,235,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(37,99,235,.045) 1px,transparent 1px); background-size:28px 28px; }
+    .card { box-shadow:0 12px 32px rgba(15,23,42,.06); }
+    .metric { letter-spacing:-.04em; }
+    .eyebrow { letter-spacing:.13em; }
+    .mermaid svg { max-width:100%; height:auto; }
+    .mermaid .nodeLabel { font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif!important; }
+    code { font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace; }
+  </style>
+</head>
+<body>
+  <header class="grid-bg border-b border-slate-200">
+    <div class="mx-auto max-w-7xl px-6 py-16 lg:px-8 lg:py-20">
+      <div class="mb-8 flex flex-wrap items-center gap-3 text-sm">
+        <span class="rounded-full bg-blue-100 px-3 py-1 font-semibold text-blue-700">Chatta / 001-integrate-chat-skill</span>
+        <span class="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-emerald-700">实现：已完成 · 测试通过</span>
+        <span class="text-slate-500">2026-08-30</span>
+      </div>
+      <div class="grid gap-10 lg:grid-cols-[1.35fr_.65fr] lg:items-end">
+        <div>
+          <p class="eyebrow mb-4 text-xs font-bold uppercase text-blue-700">feature report</p>
+          <h1 class="max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-6xl">集成式 Agent Chat</h1>
+          <p class="mt-6 max-w-3xl text-lg leading-8 text-slate-600">
+            将独立 IRC 协作包装器吸收到 <code>chatta</code>：以 <code>chatta chat</code> 提供可恢复、
+            有会话归属且可审计的本地 Agent 协作能力，并随仓库交付独立可用的 <code>chat</code> SKILL。
+          </p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="card rounded-2xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">任务总数</p><p class="metric mt-1 text-4xl font-semibold text-slate-950">52</p><p class="mt-2 text-xs text-slate-500">7 个交付阶段</p></div>
+          <div class="card rounded-2xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">MVP 截止点</p><p class="metric mt-1 text-4xl font-semibold text-slate-950">T025</p><p class="mt-2 text-xs text-slate-500">安全启动与健康检查</p></div>
+          <div class="card rounded-2xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">目标平台</p><p class="mt-1 text-2xl font-semibold text-slate-950">macOS / Linux</p><p class="mt-2 text-xs text-slate-500">POSIX；Windows 不在首版</p></div>
+          <div class="card rounded-2xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">协作边界</p><p class="mt-1 text-2xl font-semibold text-slate-950">本机 / 私有 LAN</p><p class="mt-2 text-xs text-slate-500">不是公网、多租户或 A2A 服务</p></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <div class="mx-auto flex max-w-7xl gap-5 overflow-x-auto px-6 py-3 text-sm font-medium text-slate-600 lg:px-8">
+      <a class="whitespace-nowrap hover:text-blue-700" href="#positioning">定位</a>
+      <a class="whitespace-nowrap hover:text-blue-700" href="#loop">核心闭环</a>
+      <a class="whitespace-nowrap hover:text-blue-700" href="#architecture">架构</a>
+      <a class="whitespace-nowrap hover:text-blue-700" href="#contract">CLI 契约</a>
+      <a class="whitespace-nowrap hover:text-blue-700" href="#delivery">交付计划</a>
+      <a class="whitespace-nowrap hover:text-blue-700" href="#risks">边界与风险</a>
+    </div>
+  </nav>
+
+  <main class="mx-auto max-w-7xl space-y-20 px-6 py-16 lg:px-8">
+    <section id="positioning">
+      <div class="mb-8 max-w-3xl">
+        <p class="eyebrow text-xs font-bold uppercase text-blue-700">01 / positioning</p>
+        <h2 class="mt-2 text-3xl font-semibold tracking-tight text-slate-950">解决“会话会消失”的协作问题</h2>
+        <p class="mt-3 leading-7 text-slate-600">一次性 shell 命令无法长期保持 IRC 连接；长期连接若不随 Agent 会话退出，又会留下占用昵称、无人读取的幽灵客户端。本功能同时解决可靠连接与安全归属。</p>
+      </div>
+      <div class="grid gap-5 lg:grid-cols-3">
+        <article class="card rounded-2xl border border-blue-200 bg-blue-50 p-6">
+          <p class="text-sm font-semibold text-blue-700">它是什么</p>
+          <h3 class="mt-3 text-xl font-semibold text-slate-950">可信环境内的 Agent 协作总线</h3>
+          <ul class="mt-4 space-y-3 text-sm leading-6 text-slate-700"><li>• 频道用于发现、公告与多人讨论</li><li>• 私信用于一对一任务与答复</li><li>• CLI 和 SKILL 共同规范会话行为</li></ul>
+        </article>
+        <article class="card rounded-2xl border border-slate-200 bg-white p-6">
+          <p class="text-sm font-semibold text-slate-500">它不是什么</p>
+          <h3 class="mt-3 text-xl font-semibold text-slate-950">不是重写 IRC 或 A2A</h3>
+          <ul class="mt-4 space-y-3 text-sm leading-6 text-slate-600"><li>• 不实现原生 IRC 协议，继续使用 <code>ii</code></li><li>• 没有 AgentCard、任务状态机或跨组织认证</li><li>• 不负责常驻服务运维与手动 refresh 伴随技能</li></ul>
+        </article>
+        <article class="card rounded-2xl border border-amber-200 bg-amber-50 p-6">
+          <p class="text-sm font-semibold text-amber-700">关键含义</p>
+          <h3 class="mt-3 text-xl font-semibold text-slate-950">先把安全的小闭环做实</h3>
+          <ul class="mt-4 space-y-3 text-sm leading-6 text-slate-700"><li>• <code>ii</code> / <code>ngircd</code> 是显式系统前置条件</li><li>• 无 TLS/认证配置不得暴露到不可信网络</li><li>• 每个 worktree 默认拥有独立 client home 与游标</li></ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="loop">
+      <div class="mb-8 max-w-3xl">
+        <p class="eyebrow text-xs font-bold uppercase text-blue-700">02 / MVP core loop</p>
+        <h2 class="mt-2 text-3xl font-semibold tracking-tight text-slate-950">先确认“谁拥有连接”，再允许协作</h2>
+        <p class="mt-3 leading-7 text-slate-600">MVP 不以“能发一条消息”为完成标准。必须确认运行中的 Agent 是可验证 owner，且频道成员关系已被服务器确认；否则命名失败原因，而不是盲目写 FIFO。</p>
+      </div>
+      <div class="card overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 sm:p-7">
+        <pre class="mermaid">
+flowchart LR
+  A["Agent 会话<br/><span style='font-size:11px'>执行 chatta chat start</span>"]:::interface
+  B{"所有者可验证？<br/><span style='font-size:11px'>PID + 启动指纹</span>"}:::decision
+  C["拒绝启动<br/><span style='font-size:11px'>不创建无主客户端</span>"]:::terminal
+  D["锁定 client home<br/><span style='font-size:11px'>每个 worktree 一个 supervisor</span>"]:::state
+  E["启动 supervisor + ii<br/><span style='font-size:11px'>进程组共同生命周期</span>"]:::state
+  F{"TIME / NAMES 健康？<br/><span style='font-size:11px'>连接与成员关系均确认</span>"}:::decision
+  G["安全协作<br/><span style='font-size:11px'>频道、私信、poll / watch</span>"]:::terminal
+  H["恢复或命名失败<br/><span style='font-size:11px'>不静默丢消息</span>"]:::terminal
+  A --> B
+  B -- 否 --> C
+  B -- 是 --> D --> E --> F
+  F -- 是 --> G
+  F -- 否 --> H
+  classDef interface fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:1.5px;
+  classDef decision fill:#fef3c7,stroke:#d97706,color:#78350f,stroke-width:1.5px;
+  classDef state fill:#e0e7ff,stroke:#4f46e5,color:#312e81,stroke-width:1.5px;
+  classDef terminal fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:1.5px;
+        </pre>
+      </div>
+      <div class="mt-5 grid gap-4 md:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-white p-5"><p class="font-semibold text-slate-900">启动</p><p class="mt-2 text-sm leading-6 text-slate-600">记录昵称、角色、频道、owner 绑定与游标；同路径外来 session 不可静默接管。</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5"><p class="font-semibold text-slate-900">日常协作</p><p class="mt-2 text-sm leading-6 text-slate-600">所有操作先经过 Ensure：检查 owner、supervisor、FIFO 读者、<code>/TIME</code> 与 <code>/NAMES</code>。</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5"><p class="font-semibold text-slate-900">结束与清理</p><p class="mt-2 text-sm leading-6 text-slate-600">owner 退出时 supervisor 带走 <code>ii</code>；<code>gc</code> 只处理可证明失效的客户端。</p></div>
+      </div>
+    </section>
+
+    <section id="architecture">
+      <div class="mb-8 grid gap-6 lg:grid-cols-[1fr_.8fr] lg:items-end">
+        <div><p class="eyebrow text-xs font-bold uppercase text-blue-700">03 / architecture</p><h2 class="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Go 管生命周期；<code>ii</code> 管 IRC</h2></div>
+        <p class="leading-7 text-slate-600">设计刻意不把 IRC 协议搬进 <code>chatta</code>。Go 层负责状态、并发与安全；<code>ii</code> 提供 FIFO/会话文件布局，<code>ngircd</code> 提供消息总线。</p>
+      </div>
+      <div class="card rounded-2xl border border-slate-200 bg-white p-4 sm:p-7">
+        <pre class="mermaid">
+flowchart LR
+  subgraph UX["交互与行为"]
+    CLI["chatta chat<br/><span style='font-size:11px'>Cobra 子命令</span>"]:::interface
+    SKILL["chat SKILL<br/><span style='font-size:11px'>身份、频道、回复约定</span>"]:::guide
+  end
+  subgraph CORE["Chatta 控制层"]
+    M["pkg/chat<br/><span style='font-size:11px'>状态、Ensure、监督、清理</span>"]:::core
+    S["state.json + 游标<br/><span style='font-size:11px'>按 worktree 隔离</span>"]:::state
+  end
+  subgraph BUS["外部传输边界"]
+    II["ii<br/><span style='font-size:11px'>FIFO / IRC 客户端</span>"]:::external
+    IRC["ngircd<br/><span style='font-size:11px'>本机或私有 LAN 总线</span>"]:::external
+  end
+  SKILL -. 使用约定 .-> CLI
+  CLI --> M
+  M <--> S
+  M --> II
+  II <--> IRC
+  classDef interface fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:1.5px;
+  classDef guide fill:#f3e8ff,stroke:#9333ea,color:#581c87,stroke-width:1.5px;
+  classDef core fill:#e0e7ff,stroke:#4f46e5,color:#312e81,stroke-width:1.5px;
+  classDef state fill:#dcfce7,stroke:#16a34a,color:#14532d,stroke-width:1.5px;
+  classDef external fill:#f1f5f9,stroke:#64748b,color:#334155,stroke-width:1.5px;
+        </pre>
+      </div>
+      <div class="mt-6 grid gap-4 lg:grid-cols-4">
+        <div class="rounded-xl border border-slate-200 bg-white p-5"><p class="font-semibold">命令层</p><p class="mt-2 text-sm leading-6 text-slate-600">参数、帮助、标准输出/错误输出；不复制生命周期逻辑。</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5"><p class="font-semibold">控制层</p><p class="mt-2 text-sm leading-6 text-slate-600">状态验证、进程身份、恢复、消息、watch 与 fleet 管理。</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5"><p class="font-semibold">持久状态</p><p class="mt-2 text-sm leading-6 text-slate-600">版本化 JSON、锁、日志、按 session 分离的消息游标。</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-5"><p class="font-semibold">传输边界</p><p class="mt-2 text-sm leading-6 text-slate-600">保留 <code>ii</code> 已验证行为，不增加自研协议面。</p></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="mb-8"><p class="eyebrow text-xs font-bold uppercase text-blue-700">04 / session model</p><h2 class="mt-2 text-3xl font-semibold tracking-tight text-slate-950">持久化协作上下文，不把它做成常驻服务</h2></div>
+      <div class="grid gap-6 lg:grid-cols-[.9fr_1.1fr]">
+        <div class="card rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
+          <pre class="mermaid">
+stateDiagram-v2
+  [*] --> Starting
+  Starting --> Active: ii 运行且加入 home channel
+  Starting --> Stopped: 启动失败
+  Active --> Recovering: FIFO 或连接异常
+  Recovering --> Active: 重启并确认 NAMES
+  Active --> Stopping: 显式 stop
+  Stopping --> Stopped: 进程组已退出
+  Active --> Orphaned: owner 心跳消失
+  Recovering --> Orphaned: owner 心跳消失
+  Orphaned --> Cleaned: gc 证明已失效
+          </pre>
+        </div>
+        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th class="px-5 py-4">实体</th><th class="px-5 py-4">关键字段 / 规则</th></tr></thead>
+            <tbody class="divide-y divide-slate-100 text-slate-700">
+              <tr><td class="px-5 py-4 font-semibold text-slate-900">ChatSession</td><td class="px-5 py-4">昵称、角色、host/port、home channel、已加入频道、owner、supervisor、启动时间。</td></tr>
+              <tr><td class="px-5 py-4 font-semibold text-slate-900">OwnerBinding</td><td class="px-5 py-4"><code>PID + StartFingerprint</code> 同时匹配才存活，避免 PID 复用误杀。</td></tr>
+              <tr><td class="px-5 py-4 font-semibold text-slate-900">Conversation / Cursor</td><td class="px-5 py-4">动态发现频道与私信目录；游标按调用 Agent session 隔离，日志缩短时安全重置。</td></tr>
+              <tr><td class="px-5 py-4 font-semibold text-slate-900">ClientSurvey</td><td class="px-5 py-4">为 <code>clients</code>/<code>gc</code> 汇总状态；live owner 永不清理。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="contract">
+      <div class="mb-8 max-w-3xl">
+        <p class="eyebrow text-xs font-bold uppercase text-blue-700">05 / public contract</p>
+        <h2 class="mt-2 text-3xl font-semibold tracking-tight text-slate-950">一组面向 Agent 的 CLI，而非一套隐式脚本</h2>
+        <p class="mt-3 leading-7 text-slate-600">根命令的 <code>--config</code>、<code>--verbose</code> 和 <code>version</code> 不变。Chat 配置优先级：flag → <code>CHATTA_CHAT_*</code> → 配置文件 → 兼容的 <code>AGENT_CHAT_*</code> → 默认值。</p>
+      </div>
+      <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+        <table class="w-full min-w-[760px] text-left text-sm">
+          <thead class="bg-slate-950 text-xs uppercase tracking-wide text-slate-300"><tr><th class="px-5 py-4">命令族</th><th class="px-5 py-4">主要命令</th><th class="px-5 py-4">可观察语义</th></tr></thead>
+          <tbody class="divide-y divide-slate-100 text-slate-700">
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">生命周期</td><td class="px-5 py-4"><code>start &lt;nick&gt; [role] [--takeover]</code><br><code>health</code> · <code>stop [--force]</code></td><td class="px-5 py-4">绑定可验证 owner；健康逐链路输出；外来 live owner 需显式授权。</td></tr>
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">频道与私信</td><td class="px-5 py-4"><code>join</code> · <code>part</code> · <code>send [-c]</code><br><code>dm &lt;nick&gt; &lt;text&gt;</code> · <code>who</code></td><td class="px-5 py-4">只向已确认加入频道发送；拒绝自我/频道 DM；未知昵称不能伪装为已送达。</td></tr>
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">接收与恢复</td><td class="px-5 py-4"><code>poll [--all]</code> · <code>watch</code></td><td class="px-5 py-4">标注来源、过滤 self echo、发现新私信，并在长运行时检查恢复。</td></tr>
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">本机治理</td><td class="px-5 py-4"><code>clients</code> · <code>gc [--dry-run] [--prune]</code></td><td class="px-5 py-4">检查全部 client home；仅处理已证明结束/无主的会话与 stray client。</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-5 flex flex-wrap gap-2 text-sm">
+        <span class="rounded-lg bg-slate-100 px-3 py-2 text-slate-700"><code>--home</code> 独立 client home</span>
+        <span class="rounded-lg bg-slate-100 px-3 py-2 text-slate-700"><code>--host</code> / <code>--port</code> 总线位置</span>
+        <span class="rounded-lg bg-slate-100 px-3 py-2 text-slate-700"><code>--channel</code> home channel</span>
+        <span class="rounded-lg bg-slate-100 px-3 py-2 text-slate-700"><code>--ii</code> 显式 ii 路径</span>
+      </div>
+    </section>
+
+    <section>
+      <div class="mb-8"><p class="eyebrow text-xs font-bold uppercase text-blue-700">06 / user value</p><h2 class="mt-2 text-3xl font-semibold tracking-tight text-slate-950">四个增量：先有在场，再有协作，再有韧性</h2></div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <article class="rounded-2xl border border-blue-200 bg-blue-50 p-6"><div class="flex justify-between"><span class="font-semibold text-blue-800">US1 · P1</span><span class="text-xs text-blue-700">MVP</span></div><h3 class="mt-3 text-xl font-semibold">持久且可归属的会话</h3><p class="mt-2 text-sm leading-6 text-slate-700">worktree 隔离、owner 心跳、健康检查、显式 takeover 与退出时连带清理。</p></article>
+        <article class="rounded-2xl border border-blue-200 bg-blue-50 p-6"><div class="flex justify-between"><span class="font-semibold text-blue-800">US2 · P1</span><span class="text-xs text-blue-700">协作闭环</span></div><h3 class="mt-3 text-xl font-semibold">频道、私信与可读收件箱</h3><p class="mt-2 text-sm leading-6 text-slate-700">成员确认、DM 缺席失败、独立游标、来源标签与 self echo 过滤。</p></article>
+        <article class="rounded-2xl border border-slate-200 bg-white p-6"><div class="flex justify-between"><span class="font-semibold text-slate-700">US3 · P2</span><span class="text-xs text-slate-500">韧性</span></div><h3 class="mt-3 text-xl font-semibold">中断后恢复而不盲发</h3><p class="mt-2 text-sm leading-6 text-slate-600">恢复 client 和频道，确认 <code>NAMES</code> 后再发送；安全 survey 与 gc。</p></article>
+        <article class="rounded-2xl border border-slate-200 bg-white p-6"><div class="flex justify-between"><span class="font-semibold text-slate-700">US4 · P2</span><span class="text-xs text-slate-500">可移植使用</span></div><h3 class="mt-3 text-xl font-semibold">仓库内的 chat SKILL</h3><p class="mt-2 text-sm leading-6 text-slate-600">把身份、频道、消息标签、回复策略、watch/poll 与信任边界随 CLI 一起交付。</p></article>
+      </div>
+    </section>
+
+    <section id="delivery">
+      <div class="mb-8 grid gap-6 lg:grid-cols-[1fr_.8fr] lg:items-end">
+        <div><p class="eyebrow text-xs font-bold uppercase text-blue-700">07 / delivery plan</p><h2 class="mt-2 text-3xl font-semibold tracking-tight text-slate-950">52 项任务，按安全依赖推进</h2></div>
+        <p class="leading-7 text-slate-600">共有 <strong>20</strong> 项可并行任务。真实 <code>ii</code> + <code>ngircd</code> 烟测被保留为带 tag 的集成验证，避免阻塞普通开发测试。</p>
+      </div>
+      <div class="grid gap-3">
+        <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[160px_1fr_70px] md:items-center"><div><span class="font-semibold">01 · Setup</span><p class="text-xs text-slate-500">T001–T003</p></div><p class="text-sm text-slate-600">依赖、集成测试护栏、环境变量示例。</p><span class="text-right text-2xl font-semibold">3</span></div>
+        <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[160px_1fr_70px] md:items-center"><div><span class="font-semibold">02 · Foundation</span><p class="text-xs text-slate-500">T004–T017</p></div><p class="text-sm text-slate-600">状态、路径、频道、owner、进程组、FIFO 与 ii 解析。</p><span class="text-right text-2xl font-semibold">14</span></div>
+        <div class="grid gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 md:grid-cols-[160px_1fr_70px] md:items-center"><div><span class="font-semibold text-blue-900">03 · US1 / MVP</span><p class="text-xs text-blue-700">T018–T025</p></div><p class="text-sm text-slate-700">启动、health、owner-death 监督与最小 smoke path。</p><span class="text-right text-2xl font-semibold text-blue-900">8</span></div>
+        <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[160px_1fr_70px] md:items-center"><div><span class="font-semibold">04 · US2</span><p class="text-xs text-slate-500">T026–T032</p></div><p class="text-sm text-slate-600">频道、DM、poll、who、独立游标与双 client 验证。</p><span class="text-right text-2xl font-semibold">7</span></div>
+        <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[160px_1fr_70px] md:items-center"><div><span class="font-semibold">05 · US3</span><p class="text-xs text-slate-500">T033–T040</p></div><p class="text-sm text-slate-600">Ensure 恢复、watch、stop、fleet、gc 与安全回归。</p><span class="text-right text-2xl font-semibold">8</span></div>
+        <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[160px_1fr_70px] md:items-center"><div><span class="font-semibold">06 · US4</span><p class="text-xs text-slate-500">T041–T046</p></div><p class="text-sm text-slate-600">server template、SKILL、参考资料与运维边界。</p><span class="text-right text-2xl font-semibold">6</span></div>
+        <div class="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[160px_1fr_70px] md:items-center"><div><span class="font-semibold">07 · Polish</span><p class="text-xs text-slate-500">T047–T052</p></div><p class="text-sm text-slate-600">全契约验证、回归、格式化、quickstart 与 FR-001–FR-019 追溯。</p><span class="text-right text-2xl font-semibold">6</span></div>
+      </div>
+    </section>
+
+    <section id="risks">
+      <div class="mb-8 max-w-3xl"><p class="eyebrow text-xs font-bold uppercase text-blue-700">08 / boundary &amp; risk register</p><h2 class="mt-2 text-3xl font-semibold tracking-tight text-slate-950">明确当前可接受的限制，避免把便利误认为安全</h2></div>
+      <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+        <table class="w-full min-w-[760px] text-left text-sm">
+          <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th class="px-5 py-4">边界 / 风险</th><th class="px-5 py-4">当前处理</th><th class="px-5 py-4">本期之外的扩展方向</th></tr></thead>
+          <tbody class="divide-y divide-slate-100 text-slate-700">
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">公网或多租户暴露</td><td class="px-5 py-4">模板只监听 <code>127.0.0.1</code>；无 TLS/认证，私有 LAN 必须用户主动配置。</td><td class="px-5 py-4">信任边界变化后，再评估认证、TLS、访问控制与服务运维。</td></tr>
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">PID 复用 / 误杀</td><td class="px-5 py-4">PID + 启动指纹；只对确认的 hidden supervisor / ii 进程组发信号。</td><td class="px-5 py-4">持续保持进程身份测试，不能退化为 PID-only 清理。</td></tr>
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">ii 连接中断</td><td class="px-5 py-4">统一 Ensure，先修复频道，再用 <code>TIME</code>/<code>NAMES</code> 验证后发送。</td><td class="px-5 py-4">真实 daemon 烟测持续约束 ii 的文件与响应语义。</td></tr>
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">平台差异</td><td class="px-5 py-4">首版限定 macOS/Linux POSIX，锁、FIFO、进程组放在平台文件。</td><td class="px-5 py-4">需要 Windows 时，先重新定义 transport 与生命周期约束。</td></tr>
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">A2A 误解</td><td class="px-5 py-4">SKILL 保留 A2A 对比：IRC 有低成本群组通信，但没有 AgentCard、任务状态与认证。</td><td class="px-5 py-4">若需要这些能力，应作为独立协议/服务能力评估。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="mb-8"><p class="eyebrow text-xs font-bold uppercase text-blue-700">09 / scope trade-off</p><h2 class="mt-2 text-3xl font-semibold tracking-tight text-slate-950">从独立脚本到仓库能力：保留行为，收缩运行时复杂度</h2></div>
+      <div class="grid gap-5 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-200 bg-white p-6"><p class="text-sm font-semibold text-slate-500">原有形态</p><h3 class="mt-2 text-xl font-semibold">独立 Python wrapper + 分散 skill 资产</h3><ul class="mt-4 space-y-3 text-sm leading-6 text-slate-600"><li>• 生命周期、FIFO、状态和测试不在当前 CLI 项目内</li><li>• 使用方需要记住脚本路径与外围资源</li><li>• 安全不变量难以受本项目测试保护</li></ul></div>
+        <div class="rounded-2xl border border-blue-200 bg-blue-50 p-6"><p class="text-sm font-semibold text-blue-700">本期目标形态</p><h3 class="mt-2 text-xl font-semibold">Go CLI + 同仓库 SKILL + 外部 ii/ngircd</h3><ul class="mt-4 space-y-3 text-sm leading-6 text-slate-700"><li>• 保留 <code>ii</code> 的 transport 语义，不重写 IRC</li><li>• 用 <code>chatta</code> 统一状态、恢复、测试与文档入口</li><li>• 用 owner binding、锁和保守 gc 保留安全目标</li></ul></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-slate-200 bg-white">
+    <div class="mx-auto flex max-w-7xl flex-col justify-between gap-3 px-6 py-8 text-sm text-slate-500 sm:flex-row lg:px-8">
+      <p>报告来源：spec.md · plan.md · research.md · data-model.md · contracts · quickstart.md · tasks.md</p>
+      <p>当前状态：规格、计划、任务与实现已完成；普通测试和带 tag 的集成护栏均通过。真实 daemon 场景按本机依赖显式运行。</p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js" integrity="sha384-WmdflGW9aGfoBdHc4rRyWzYuAjEmDwMdGdiPNacbwfGKxBW/SO6guzuQ76qjnSlr" crossorigin="anonymous"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "neutral",
+      securityLevel: "loose",
+      flowchart: { curve: "basis", htmlLabels: true },
+      themeVariables: { fontFamily: "Inter, PingFang SC, Microsoft YaHei, sans-serif", primaryTextColor: "#172033", lineColor: "#64748b" }
+    });
+  </script>
+</body>
+</html>
