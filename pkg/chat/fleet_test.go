@@ -36,3 +36,21 @@ func TestSurveyFindsSiblingClientHomes(t *testing.T) {
 		t.Fatalf("expected two homes, got %+v (%v)", rows, err)
 	}
 }
+
+func TestWithinRootRejectsSiblingPrefix(t *testing.T) {
+	root := t.TempDir() + "/clients"
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{root, true},
+		{root + "/agent-one", true},
+		{root + "-backup/agent-one", false},
+		{t.TempDir(), false},
+	}
+	for _, tc := range cases {
+		if got := withinRoot(tc.path, root); got != tc.want {
+			t.Errorf("withinRoot(%q, %q) = %t, want %t", tc.path, root, got, tc.want)
+		}
+	}
+}
