@@ -54,7 +54,7 @@ func SaveState(path string, s ChatSession) error {
 		return e
 	}
 	tmp := f.Name()
-	defer os.Remove(tmp)
+	defer func() { _ = os.Remove(tmp) }()
 	if _, e = f.Write(append(b, '\n')); e == nil {
 		e = f.Chmod(0600)
 	}
@@ -96,7 +96,7 @@ func SaveCursors(path string, c MessageCursor) error {
 		return e
 	}
 	tmp := f.Name()
-	defer os.Remove(tmp)
+	defer func() { _ = os.Remove(tmp) }()
 	if _, e = f.Write(append(b, '\n')); e == nil {
 		e = f.Chmod(0600)
 	}

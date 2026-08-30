@@ -46,7 +46,9 @@ func startSession(cmd *cobra.Command, args []string) error {
 
 func checkHealth(cmd *cobra.Command, _ []string) error {
 	r := newChatManager().Health(true)
-	fmt.Fprintf(cmd.OutOrStdout(), "owner=%t supervisor=%t channels=%t reader=%t server=%t membership=%t\n", r.Owner, r.Supervisor, r.JoinedChannels, r.ClientReader, r.ServerLink, r.Membership)
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "owner=%t supervisor=%t channels=%t reader=%t server=%t membership=%t\n", r.Owner, r.Supervisor, r.JoinedChannels, r.ClientReader, r.ServerLink, r.Membership); err != nil {
+		return err
+	}
 	if r.Failure != "" {
 		return fmt.Errorf("health: %s", r.Failure)
 	}
@@ -76,13 +78,17 @@ func readInbox(cmd *cobra.Command, _ []string) error {
 	all, _ := cmd.Flags().GetBool("all")
 	lines, err := newChatManager().Poll(all)
 	for _, line := range lines {
-		fmt.Fprintln(cmd.OutOrStdout(), line)
+		if _, writeErr := fmt.Fprintln(cmd.OutOrStdout(), line); writeErr != nil {
+			return writeErr
+		}
 	}
 	return err
 }
 
 func watchInbox(cmd *cobra.Command, _ []string) error {
-	return newChatManager().Watch(cmd.Context().Done(), func(line string) { fmt.Fprintln(cmd.OutOrStdout(), line) })
+	return newChatManager().Watch(cmd.Context().Done(), func(line string) {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), line)
+	})
 }
 
 func channelMembers(cmd *cobra.Command, args []string) error {
@@ -92,7 +98,9 @@ func channelMembers(cmd *cobra.Command, args []string) error {
 	}
 	lines, err := newChatManager().Who(target)
 	for _, line := range lines {
-		fmt.Fprintln(cmd.OutOrStdout(), line)
+		if _, writeErr := fmt.Fprintln(cmd.OutOrStdout(), line); writeErr != nil {
+			return writeErr
+		}
 	}
 	return err
 }
@@ -105,7 +113,9 @@ func stopSession(cmd *cobra.Command, _ []string) error {
 func listClients(cmd *cobra.Command, _ []string) error {
 	rows, err := newChatManager().Survey()
 	for _, row := range rows {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s nick=%s owner=%s supervisor=%s ii=%s(%d) cleanup=%s\n", row.ClientHome, row.SessionSummary, row.OwnerState, row.SupervisorState, row.ClientProcessState, row.IIProcessCount, row.CleanupEligibility)
+		if _, writeErr := fmt.Fprintf(cmd.OutOrStdout(), "%s nick=%s owner=%s supervisor=%s ii=%s(%d) cleanup=%s\n", row.ClientHome, row.SessionSummary, row.OwnerState, row.SupervisorState, row.ClientProcessState, row.IIProcessCount, row.CleanupEligibility); writeErr != nil {
+			return writeErr
+		}
 	}
 	return err
 }
@@ -114,7 +124,9 @@ func collectGarbage(cmd *cobra.Command, _ []string) error {
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	prune, _ := cmd.Flags().GetBool("prune")
 	out, err := newChatManager().GC(dry, prune)
-	fmt.Fprint(cmd.OutOrStdout(), out)
+	if _, writeErr := fmt.Fprint(cmd.OutOrStdout(), out); writeErr != nil {
+		return writeErr
+	}
 	return err
 }
 
