@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/spf13/cobra"
+)
 
 func TestChatCommandExposesLifecycleCommands(t *testing.T) {
 	for _, name := range []string{"start", "health", "stop"} {
@@ -19,5 +23,36 @@ func TestChatCommandExposesLifecycleCommands(t *testing.T) {
 	}
 	if supervisorCmd.Hidden != true {
 		t.Fatal("supervisor command must be hidden")
+	}
+}
+
+func TestChatCommandExposesDomainCommandGroups(t *testing.T) {
+	groups := map[string][]string{
+		"session": {"start", "status", "stop"},
+		"channel": {"join", "leave", "members"},
+		"message": {"send", "direct"},
+		"inbox":   {"read", "watch"},
+		"client":  {"list", "gc"},
+	}
+	for name, commands := range groups {
+		var groupFound *cobra.Command
+		found := false
+		for _, child := range chatCmd.Commands() {
+			if child.Name() == name {
+				found = true
+				groupFound = child
+			}
+		}
+		if !found {
+			t.Fatalf("missing chat %s command group", name)
+		}
+		for _, command := range commands {
+			if _, _, err := groupFound.Find([]string{command}); err != nil {
+				t.Fatalf("missing chat %s %s command: %v", name, command, err)
+			}
+		}
+	}
+	if !startCmd.Hidden || !healthCmd.Hidden || !clientsCmd.Hidden {
+		t.Fatal("flat compatibility commands must stay hidden from the primary command tree")
 	}
 }

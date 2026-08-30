@@ -16,6 +16,8 @@ type Manager struct {
 	Port                               int
 	Paths                              Paths
 	State                              ChatSession
+	OwnerLookup                        func() (OwnerBinding, error)
+	Executable                         string
 }
 
 func NewManager(cfg config.ChatConfig) *Manager {
@@ -41,5 +43,12 @@ func NewManager(cfg config.ChatConfig) *Manager {
 		home = WorktreeHome("", filepath.Clean(root))
 	}
 	paths := ResolvePaths(home)
-	return &Manager{Home: home, StatePath: paths.State, Host: host, Port: port, Channel: channel, II: cfg.II, Paths: paths}
+	return &Manager{Home: home, StatePath: paths.State, Host: host, Port: port, Channel: channel, II: cfg.II, Paths: paths, OwnerLookup: FindAgentOwner}
+}
+
+func (m *Manager) findOwner() (OwnerBinding, error) {
+	if m.OwnerLookup != nil {
+		return m.OwnerLookup()
+	}
+	return FindAgentOwner()
 }

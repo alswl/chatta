@@ -50,6 +50,9 @@ type MessageCursor struct {
 type ClientSurvey struct {
 	ClientHome         string `json:"client_home"`
 	SessionSummary     string `json:"session_summary"`
+	OwnerState         string `json:"owner_state"`
+	SupervisorState    string `json:"supervisor_state"`
 	ClientProcessState string `json:"client_process_state"`
+	IIProcessCount     int    `json:"ii_process_count"`
 	CleanupEligibility string `json:"cleanup_eligibility"`
 }

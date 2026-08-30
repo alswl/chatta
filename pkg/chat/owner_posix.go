@@ -88,3 +88,13 @@ func ownerSessionID(owner OwnerBinding) string {
 	}
 	return fmt.Sprintf("pid:%d:%s", owner.PID, owner.StartFingerprint)
 }
+
+func InvocationSessionID(fallback string) string {
+	if id := RuntimeSessionID(); id != "" {
+		return id
+	}
+	if owner, err := FindAgentOwner(); err == nil {
+		return ownerSessionID(owner)
+	}
+	return fallback
+}

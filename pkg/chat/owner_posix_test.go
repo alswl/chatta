@@ -19,3 +19,10 @@ func TestProcessStartAndAlive(t *testing.T) {
 		t.Fatal("mismatched fingerprint must not be alive")
 	}
 }
+
+func TestInvocationSessionIDPrefersCallingRuntime(t *testing.T) {
+	t.Setenv("CODEX_SESSION_ID", "reader-session")
+	if got := InvocationSessionID("owner-session"); got != "reader-session" {
+		t.Fatalf("got %q", got)
+	}
+}

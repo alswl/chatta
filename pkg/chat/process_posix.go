@@ -85,10 +85,28 @@ func StopVerifiedSupervisor(pid int, startFingerprint string) error {
 }
 
 func ReapStrayII(conversations string) error {
-	out, err := exec.Command("ps", "-axo", "pid=,command=").Output()
+	pids, err := iiPIDs(conversations)
 	if err != nil {
 		return err
 	}
+	for _, pid := range pids {
+		fingerprint := ProcessStart(pid)
+		if fingerprint == "" {
+			continue
+		}
+		if err := stopVerifiedII(pid, fingerprint, conversations); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func iiPIDs(conversations string) ([]int, error) {
+	out, err := exec.Command("ps", "-axo", "pid=,command=").Output()
+	if err != nil {
+		return nil, err
+	}
+	pids := make([]int, 0)
 	for _, line := range strings.Split(string(out), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 2 {
@@ -99,15 +117,9 @@ func ReapStrayII(conversations string) error {
 		if err != nil || !isIIForHome(command, conversations) {
 			continue
 		}
-		fingerprint := ProcessStart(pid)
-		if fingerprint == "" {
-			continue
-		}
-		if err := stopVerifiedII(pid, fingerprint, conversations); err != nil {
-			return err
-		}
+		pids = append(pids, pid)
 	}
-	return nil
+	return pids, nil
 }
 
 func isIIForHome(command, conversations string) bool {

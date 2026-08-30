@@ -9,12 +9,13 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
 
 func (m *Manager) Start(nick, role string, takeover bool) error {
-	owner, err := FindAgentOwner()
+	owner, err := m.findOwner()
 	if err != nil {
 		return err
 	}
@@ -51,6 +52,8 @@ func (m *Manager) Start(nick, role string, takeover bool) error {
 		return err
 	}
 	m.State = session
+	serverOut := filepath.Join(m.Paths.Conversations, session.Host, "out")
+	serverOffset := fileSize(serverOut)
 	pid, err := m.spawnSupervisor()
 	if err != nil {
 		return err
@@ -67,6 +70,10 @@ func (m *Manager) Start(nick, role string, takeover bool) error {
 	m.State = session
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
+		if nicknameTaken(serverOut, serverOffset, nick) {
+			_ = StopVerifiedSupervisor(pid, session.SupervisorStartFingerprint)
+			return fmt.Errorf("the nick %q is already in use on this server; choose a distinct nick", nick)
+		}
 		if report := m.Health(true); report.Owner && report.Supervisor && report.ClientReader && report.ServerLink && report.Membership {
 			return nil
 		}
@@ -80,7 +87,11 @@ func (m *Manager) spawnSupervisor() (int, error) {
 	if err := os.MkdirAll(m.Paths.Home, 0700); err != nil {
 		return 0, err
 	}
-	cmd := exec.Command(os.Args[0], "chat", "--home", m.Home, "--host", m.Host, "--port", fmt.Sprint(m.Port), "--channel", m.Channel, "--ii", m.II, "_supervise")
+	executable := m.Executable
+	if executable == "" {
+		executable = os.Args[0]
+	}
+	cmd := exec.Command(executable, "chat", "--home", m.Home, "--host", m.Host, "--port", fmt.Sprint(m.Port), "--channel", m.Channel, "--ii", m.II, "_supervise")
 	cmd.Stdout, cmd.Stderr = mustOpenLog(m.Paths.Log)
 	cmd.Stdin = nil
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -88,6 +99,16 @@ func (m *Manager) spawnSupervisor() (int, error) {
 		return 0, err
 	}
 	return cmd.Process.Pid, nil
+}
+
+func nicknameTaken(path string, offset int64, nick string) bool {
+	lines, _, _ := Tail(path, offset)
+	for _, line := range lines {
+		if strings.Contains(line, nick+" Nickname already in use") || (strings.Contains(line, nick) && strings.Contains(strings.ToLower(line), "nickname already in use")) {
+			return true
+		}
+	}
+	return false
 }
 
 func mustOpenLog(path string) (*os.File, *os.File) {
@@ -126,8 +147,8 @@ func (m *Manager) supervise() error {
 				return fmt.Errorf("join %s after starting ii: %w", channel.Name, err)
 			}
 		}
-		done := make(chan struct{})
-		go func() { _ = client.Cmd.Wait(); close(done) }()
+		done := make(chan error, 1)
+		go func() { done <- client.Cmd.Wait() }()
 		ticker := time.NewTicker(time.Second)
 		terminated := false
 		running := true
@@ -136,7 +157,10 @@ func (m *Manager) supervise() error {
 			case <-stop:
 				terminated = true
 				_ = client.Cmd.Process.Signal(syscall.SIGTERM)
-			case <-done:
+			case waitErr := <-done:
+				if waitErr != nil {
+					_, _ = fmt.Fprintf(client.Log, "ii exited: %v\n", waitErr)
+				}
 				running = false
 			case <-ticker.C:
 				if !ProcessAlive(st.Owner) {
