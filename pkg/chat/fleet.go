@@ -118,7 +118,7 @@ func (m *Manager) GC(dryRun, prune bool) (string, error) {
 	}
 	var b strings.Builder
 	for _, row := range rows {
-		b.WriteString(fmt.Sprintf("%s: %s, ii=%d (%s)\n", row.SessionSummary, row.ClientProcessState, row.IIProcessCount, row.CleanupEligibility))
+		_, _ = fmt.Fprintf(&b, "%s: %s, ii=%d (%s)\n", row.SessionSummary, row.ClientProcessState, row.IIProcessCount, row.CleanupEligibility)
 		orphanII := row.SupervisorState != "alive" && row.IIProcessCount > 0
 		if dryRun {
 			if orphanII {

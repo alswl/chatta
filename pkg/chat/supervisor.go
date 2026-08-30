@@ -124,7 +124,7 @@ func (m *Manager) supervise() error {
 	if err != nil {
 		return fmt.Errorf("another supervisor owns this client: %w", err)
 	}
-	defer lock.Close()
+	defer func() { _ = lock.Close() }()
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(stop)

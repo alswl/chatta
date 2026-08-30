@@ -124,7 +124,7 @@ func lsofHasPath(output []byte, path string) bool {
 	return false
 }
 
-func Tail(path string, offset int64) ([]string, int64, error) {
+func Tail(path string, offset int64) (lines []string, nextOffset int64, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -132,7 +132,11 @@ func Tail(path string, offset int64) ([]string, int64, error) {
 		}
 		return nil, offset, err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); err == nil {
+			err = closeErr
+		}
+	}()
 	if info, err := f.Stat(); err == nil && info.Size() < offset {
 		offset = 0
 	}
@@ -143,7 +147,7 @@ func Tail(path string, offset int64) ([]string, int64, error) {
 	if err != nil {
 		return nil, offset, err
 	}
-	lines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	lines = strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
 	if len(lines) == 1 && lines[0] == "" {
 		lines = nil
 	}
