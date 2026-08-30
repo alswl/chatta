@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -65,6 +66,7 @@ jobs:
         run: sha256sum *.tar.gz > checksums.txt
       - uses: softprops/action-gh-release@v2
         with:
+          draft: true
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: dist/*
