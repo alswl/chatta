@@ -92,8 +92,22 @@ func FIFOReader(path string) bool {
 	// Opening and closing a writer can make ii observe EOF on its channel FIFO
 	// and reconnect. Inspect the existing descriptor instead of touching the
 	// transport path.
-	out, _ := exec.Command("lsof", "-t", path).Output()
-	return strings.TrimSpace(string(out)) != ""
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+	// BSD lsof does not select named pipes by pathname, so ask for open names
+	// and match the canonical FIFO path ourselves.
+	out, err := exec.Command("lsof", "-n", "-P", "-F", "n").Output()
+	return err == nil && lsofHasPath(out, path)
+}
+
+func lsofHasPath(output []byte, path string) bool {
+	for _, line := range strings.Split(string(output), "\n") {
+		if strings.TrimPrefix(line, "n") == path {
+			return true
+		}
+	}
+	return false
 }
 
 func Tail(path string, offset int64) ([]string, int64, error) {

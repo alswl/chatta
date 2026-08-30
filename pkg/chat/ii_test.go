@@ -65,3 +65,14 @@ func TestFIFOReaderObservesOpenFIFOWithoutWriting(t *testing.T) {
 	}
 	t.Fatal("open FIFO was not observed")
 }
+
+func TestLsofHasPathRequiresAnExactNameRecord(t *testing.T) {
+	path := "/private/tmp/client/irc/server/#agents/in"
+	output := []byte("p123\nfcwd\nn/private/tmp/client\nfn\nn" + path + "\n")
+	if !lsofHasPath(output, path) {
+		t.Fatal("expected matching lsof name record")
+	}
+	if lsofHasPath(output, path+"-backup") {
+		t.Fatal("prefix match must not make a different FIFO healthy")
+	}
+}

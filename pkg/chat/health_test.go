@@ -15,3 +15,14 @@ func TestHealthWithoutSessionNamesFailure(t *testing.T) {
 		t.Fatalf("unexpected health report: %+v", r)
 	}
 }
+
+func TestTimeReplyAcceptsFormattedAndRawIIRCLines(t *testing.T) {
+	for _, line := range []string{
+		"1700000000 agentchat.local Thursday August 27 2026",
+		"1700000000 :agentchat.local 391 misky agentchat.local :Thursday August 27 2026",
+	} {
+		if !timeReply.MatchString(line) {
+			t.Errorf("TIME reply was not recognized: %q", line)
+		}
+	}
+}
