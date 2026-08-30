@@ -13,7 +13,9 @@ var (
 )
 
 var chatCmd = &cobra.Command{
-	Use: "chat", Short: "Coordinate agent sessions over a local chat bus",
+	Use:   "chat",
+	Short: "Coordinate agent sessions over a local chat bus",
+	Long:  "Coordinate agent sessions by managing their session, channels, messages, inbox, and local clients.",
 }
 
 func init() {
@@ -23,63 +25,67 @@ func init() {
 	flags.IntVar(&chatPort, "port", 0, "chat server port")
 	flags.StringVar(&chatChannel, "channel", "", "home channel")
 	flags.StringVar(&chatII, "ii", "", "ii executable path")
+	chatCmd.AddCommand(sessionCmd, channelCmd, messageCmd, inboxCmd, clientCmd)
 	chatCmd.AddCommand(startCmd, healthCmd, joinCmd, partCmd, sendCmd, dmCmd, pollCmd, watchCmd, whoCmd, stopCmd, clientsCmd, gcCmd, supervisorCmd)
 	rootCmd.AddCommand(chatCmd)
 }
 
 func newChatManager() *chat.Manager { return chat.NewManager(appConfig.Chat) }
 
-var startCmd = &cobra.Command{
-	Use: "start <nick> [role]", Args: cobra.RangeArgs(1, 2),
-	Short: "Start an owner-bound chat session",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		role := "agent"
-		if len(args) == 2 {
-			role = args[1]
-		}
-		if err := newChatManager().Start(args[0], role, mustBool(cmd, "takeover")); err != nil {
-			return err
-		}
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "chat session started")
-		return nil
-	},
+func startSession(cmd *cobra.Command, args []string) error {
+	role := "agent"
+	if len(args) == 2 {
+		role = args[1]
+	}
+	if err := newChatManager().Start(args[0], role, mustBool(cmd, "takeover")); err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "chat session started")
+	return nil
 }
 
-var healthCmd = &cobra.Command{Use: "health", Short: "Check owner, client, and server health", RunE: func(cmd *cobra.Command, _ []string) error {
-	m := newChatManager()
-	r := m.Health(true)
+func checkHealth(cmd *cobra.Command, _ []string) error {
+	r := newChatManager().Health(true)
 	fmt.Fprintf(cmd.OutOrStdout(), "owner=%t supervisor=%t channels=%t reader=%t server=%t membership=%t\n", r.Owner, r.Supervisor, r.JoinedChannels, r.ClientReader, r.ServerLink, r.Membership)
 	if r.Failure != "" {
 		return fmt.Errorf("health: %s", r.Failure)
 	}
 	return nil
-}}
+}
 
-var joinCmd = &cobra.Command{Use: "join <channel>", Args: cobra.ExactArgs(1), Short: "Join and remember a channel", RunE: func(_ *cobra.Command, args []string) error { return newChatManager().Join(args[0]) }}
-var partCmd = &cobra.Command{Use: "part <channel> [reason]", Args: cobra.RangeArgs(1, 2), Short: "Leave a remembered channel", RunE: func(_ *cobra.Command, args []string) error {
+func joinChannel(_ *cobra.Command, args []string) error { return newChatManager().Join(args[0]) }
+
+func leaveChannel(_ *cobra.Command, args []string) error {
 	reason := "done here"
 	if len(args) == 2 {
 		reason = args[1]
 	}
 	return newChatManager().Part(args[0], reason)
-}}
-var sendCmd = &cobra.Command{Use: "send <text>", Args: cobra.ExactArgs(1), Short: "Send a message to a joined channel", RunE: func(cmd *cobra.Command, args []string) error {
+}
+
+func sendMessage(cmd *cobra.Command, args []string) error {
 	channel, _ := cmd.Flags().GetString("channel")
 	return newChatManager().Send(channel, args[0])
-}}
-var dmCmd = &cobra.Command{Use: "dm <nick> <text>", Args: cobra.ExactArgs(2), Short: "Send a direct message", RunE: func(_ *cobra.Command, args []string) error { return newChatManager().DM(args[0], args[1]) }}
-var pollCmd = &cobra.Command{Use: "poll", Short: "Print incoming messages", RunE: func(cmd *cobra.Command, _ []string) error {
+}
+
+func sendDirectMessage(_ *cobra.Command, args []string) error {
+	return newChatManager().DM(args[0], args[1])
+}
+
+func readInbox(cmd *cobra.Command, _ []string) error {
 	all, _ := cmd.Flags().GetBool("all")
 	lines, err := newChatManager().Poll(all)
 	for _, line := range lines {
 		fmt.Fprintln(cmd.OutOrStdout(), line)
 	}
 	return err
-}}
-var watchCmd = &cobra.Command{Use: "watch", Short: "Stream incoming messages", RunE: func(cmd *cobra.Command, _ []string) error {
+}
+
+func watchInbox(cmd *cobra.Command, _ []string) error {
 	return newChatManager().Watch(cmd.Context().Done(), func(line string) { fmt.Fprintln(cmd.OutOrStdout(), line) })
-}}
-var whoCmd = &cobra.Command{Use: "who [channel]", Args: cobra.MaximumNArgs(1), Short: "List channel members", RunE: func(cmd *cobra.Command, args []string) error {
+}
+
+func channelMembers(cmd *cobra.Command, args []string) error {
 	target := ""
 	if len(args) == 1 {
 		target = args[0]
@@ -89,37 +95,136 @@ var whoCmd = &cobra.Command{Use: "who [channel]", Args: cobra.MaximumNArgs(1), S
 		fmt.Fprintln(cmd.OutOrStdout(), line)
 	}
 	return err
-}}
-var stopCmd = &cobra.Command{Use: "stop", Short: "Stop the owned client", RunE: func(cmd *cobra.Command, _ []string) error {
+}
+
+func stopSession(cmd *cobra.Command, _ []string) error {
 	force, _ := cmd.Flags().GetBool("force")
 	return newChatManager().Stop(force)
-}}
-var clientsCmd = &cobra.Command{Use: "clients", Short: "Survey local chat clients", RunE: func(cmd *cobra.Command, _ []string) error {
+}
+
+func listClients(cmd *cobra.Command, _ []string) error {
 	rows, err := newChatManager().Survey()
 	for _, row := range rows {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s %s\n", row.SessionSummary, row.ClientProcessState, row.CleanupEligibility)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s nick=%s owner=%s supervisor=%s ii=%s(%d) cleanup=%s\n", row.ClientHome, row.SessionSummary, row.OwnerState, row.SupervisorState, row.ClientProcessState, row.IIProcessCount, row.CleanupEligibility)
 	}
 	return err
-}}
-var gcCmd = &cobra.Command{Use: "gc", Short: "Clean up abandoned clients", RunE: func(cmd *cobra.Command, _ []string) error {
+}
+
+func collectGarbage(cmd *cobra.Command, _ []string) error {
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	prune, _ := cmd.Flags().GetBool("prune")
 	out, err := newChatManager().GC(dry, prune)
 	fmt.Fprint(cmd.OutOrStdout(), out)
 	return err
-}}
+}
+
+func newStartCmd(use, short string, hidden bool) *cobra.Command {
+	cmd := &cobra.Command{Use: use, Args: cobra.RangeArgs(1, 2), Short: short, Hidden: hidden, RunE: startSession}
+	cmd.Flags().Bool("takeover", false, "replace a client after user confirmation")
+	return cmd
+}
+
+func newHealthCmd(use, short string, hidden bool) *cobra.Command {
+	return &cobra.Command{Use: use, Args: cobra.NoArgs, Short: short, Hidden: hidden, RunE: checkHealth}
+}
+
+func newJoinCmd(use, short string, hidden bool) *cobra.Command {
+	return &cobra.Command{Use: use, Args: cobra.ExactArgs(1), Short: short, Hidden: hidden, RunE: joinChannel}
+}
+
+func newLeaveCmd(use, short string, hidden bool) *cobra.Command {
+	return &cobra.Command{Use: use, Args: cobra.RangeArgs(1, 2), Short: short, Hidden: hidden, RunE: leaveChannel}
+}
+
+func newSendCmd(use, short string, hidden bool) *cobra.Command {
+	cmd := &cobra.Command{Use: use, Args: cobra.ExactArgs(1), Short: short, Hidden: hidden, RunE: sendMessage}
+	cmd.Flags().StringP("channel", "c", "", "channel to send to")
+	return cmd
+}
+
+func newDirectCmd(use, short string, hidden bool) *cobra.Command {
+	return &cobra.Command{Use: use, Args: cobra.ExactArgs(2), Short: short, Hidden: hidden, RunE: sendDirectMessage}
+}
+
+func newReadCmd(use, short string, hidden bool) *cobra.Command {
+	cmd := &cobra.Command{Use: use, Args: cobra.NoArgs, Short: short, Hidden: hidden, RunE: readInbox}
+	cmd.Flags().Bool("all", false, "replay available history")
+	return cmd
+}
+
+func newWatchCmd(use, short string, hidden bool) *cobra.Command {
+	return &cobra.Command{Use: use, Args: cobra.NoArgs, Short: short, Hidden: hidden, RunE: watchInbox}
+}
+
+func newMembersCmd(use, short string, hidden bool) *cobra.Command {
+	return &cobra.Command{Use: use, Args: cobra.MaximumNArgs(1), Short: short, Hidden: hidden, RunE: channelMembers}
+}
+
+func newStopCmd(use, short string, hidden bool) *cobra.Command {
+	cmd := &cobra.Command{Use: use, Args: cobra.NoArgs, Short: short, Hidden: hidden, RunE: stopSession}
+	cmd.Flags().Bool("force", false, "stop a client owned by another session")
+	return cmd
+}
+
+func newListCmd(use, short string, hidden bool) *cobra.Command {
+	return &cobra.Command{Use: use, Args: cobra.NoArgs, Short: short, Hidden: hidden, RunE: listClients}
+}
+
+func newGCCmd(use, short string, hidden bool) *cobra.Command {
+	cmd := &cobra.Command{Use: use, Args: cobra.NoArgs, Short: short, Hidden: hidden, RunE: collectGarbage}
+	cmd.Flags().Bool("dry-run", false, "report actions without changing anything")
+	cmd.Flags().Bool("prune", false, "remove confirmed-dead client directories")
+	return cmd
+}
+
+var sessionCmd = &cobra.Command{Use: "session", Short: "Manage the agent-owned chat session"}
+var channelCmd = &cobra.Command{Use: "channel", Short: "Manage shared channel membership and members"}
+var messageCmd = &cobra.Command{Use: "message", Short: "Send channel and direct messages"}
+var inboxCmd = &cobra.Command{Use: "inbox", Short: "Read or watch incoming conversations"}
+var clientCmd = &cobra.Command{Use: "client", Short: "Inspect and clean up local chat clients"}
+
+func init() {
+	sessionCmd.AddCommand(
+		newStartCmd("start <nick> [role]", "Start an owner-bound chat session", false),
+		newHealthCmd("status", "Check owner, client, and server health", false),
+		newStopCmd("stop", "Stop the owned client", false),
+	)
+	channelCmd.AddCommand(
+		newJoinCmd("join <channel>", "Join and remember a channel", false),
+		newLeaveCmd("leave <channel> [reason]", "Leave a remembered channel", false),
+		newMembersCmd("members [channel]", "List channel members", false),
+	)
+	messageCmd.AddCommand(
+		newSendCmd("send <text>", "Send a message to a joined channel", false),
+		newDirectCmd("direct <nick> <text>", "Send a direct message", false),
+	)
+	inboxCmd.AddCommand(
+		newReadCmd("read", "Print incoming messages", false),
+		newWatchCmd("watch", "Stream incoming messages", false),
+	)
+	clientCmd.AddCommand(
+		newListCmd("list", "Survey local chat clients", false),
+		newGCCmd("gc", "Clean up abandoned clients", false),
+	)
+}
+
+// Flat commands remain available for existing skills and shell scripts, but the
+// grouped command tree is the documented public interface.
+var startCmd = newStartCmd("start <nick> [role]", "Compatibility alias for session start", true)
+var healthCmd = newHealthCmd("health", "Compatibility alias for session status", true)
+var joinCmd = newJoinCmd("join <channel>", "Compatibility alias for channel join", true)
+var partCmd = newLeaveCmd("part <channel> [reason]", "Compatibility alias for channel leave", true)
+var sendCmd = newSendCmd("send <text>", "Compatibility alias for message send", true)
+var dmCmd = newDirectCmd("dm <nick> <text>", "Compatibility alias for message direct", true)
+var pollCmd = newReadCmd("poll", "Compatibility alias for inbox read", true)
+var watchCmd = newWatchCmd("watch", "Compatibility alias for inbox watch", true)
+var whoCmd = newMembersCmd("who [channel]", "Compatibility alias for channel members", true)
+var stopCmd = newStopCmd("stop", "Compatibility alias for session stop", true)
+var clientsCmd = newListCmd("clients", "Compatibility alias for client list", true)
+var gcCmd = newGCCmd("gc", "Compatibility alias for client gc", true)
 var supervisorCmd = &cobra.Command{Use: "_supervise", Hidden: true, RunE: func(_ *cobra.Command, _ []string) error { return newChatManager().RunSupervisor() }}
 
 func mustBool(cmd *cobra.Command, name string) bool {
 	value, _ := cmd.Flags().GetBool(name)
 	return value
-}
-
-func init() {
-	startCmd.Flags().Bool("takeover", false, "replace a client after user confirmation")
-	sendCmd.Flags().StringP("channel", "c", "", "channel to send to")
-	pollCmd.Flags().Bool("all", false, "replay available history")
-	stopCmd.Flags().Bool("force", false, "stop a client owned by another session")
-	gcCmd.Flags().Bool("dry-run", false, "report actions without changing anything")
-	gcCmd.Flags().Bool("prune", false, "remove confirmed-dead client directories")
 }

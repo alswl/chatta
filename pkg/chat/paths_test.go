@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -17,6 +18,21 @@ func TestWorktreeHomeDeterministicAndDistinct(t *testing.T) {
 	}
 	if !strings.HasPrefix(filepath.Base(a), "a-") {
 		t.Fatalf("missing worktree basename: %s", a)
+	}
+}
+
+func TestWorktreeHomeResolvesSymlink(t *testing.T) {
+	root := t.TempDir()
+	worktree := filepath.Join(root, "actual-worktree")
+	if err := os.Mkdir(worktree, 0755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "worktree-link")
+	if err := os.Symlink(worktree, link); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := WorktreeHome(filepath.Join(root, "clients"), link), WorktreeHome(filepath.Join(root, "clients"), worktree); got != want {
+		t.Fatalf("symlink home = %q, want %q", got, want)
 	}
 }
 func TestResolvePaths(t *testing.T) {

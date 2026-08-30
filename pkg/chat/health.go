@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var timeReply = regexp.MustCompile(`^\d+ \S+ (Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) `)
+var timeReply = regexp.MustCompile(`^\d+ (?:\S+ (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) |:\S+ 391 \S+ \S+ :(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) )`)
 
 func (m *Manager) Health(deep bool) HealthReport {
 	st := m.State

@@ -32,4 +32,4 @@
 ## Notes
 
 - Validation passed on the first review. The specification preserves the source behavior as user-observable CLI and SKILL outcomes while leaving implementation design to planning.
-- Implementation evidence: `go test ./...`, `go test -tags=integration ./tests/chat/...`, and `go build ./cmd/chatta` pass. The tagged suite explicitly skips full daemon scenarios when `ii` or `ngircd` is unavailable.
+- Implementation evidence: `go test ./...`, `go test -tags=integration ./tests/chat/...`, and `go build ./cmd/chatta` pass. The tagged suite starts an isolated daemon and explicitly skips only when `ii` or `ngircd` is unavailable.

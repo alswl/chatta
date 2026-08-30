@@ -199,10 +199,10 @@ stateDiagram-v2
         <table class="w-full min-w-[760px] text-left text-sm">
           <thead class="bg-slate-950 text-xs uppercase tracking-wide text-slate-300"><tr><th class="px-5 py-4">命令族</th><th class="px-5 py-4">主要命令</th><th class="px-5 py-4">可观察语义</th></tr></thead>
           <tbody class="divide-y divide-slate-100 text-slate-700">
-            <tr><td class="px-5 py-4 font-semibold text-slate-900">生命周期</td><td class="px-5 py-4"><code>start &lt;nick&gt; [role] [--takeover]</code><br><code>health</code> · <code>stop [--force]</code></td><td class="px-5 py-4">绑定可验证 owner；健康逐链路输出；外来 live owner 需显式授权。</td></tr>
-            <tr><td class="px-5 py-4 font-semibold text-slate-900">频道与私信</td><td class="px-5 py-4"><code>join</code> · <code>part</code> · <code>send [-c]</code><br><code>dm &lt;nick&gt; &lt;text&gt;</code> · <code>who</code></td><td class="px-5 py-4">只向已确认加入频道发送；拒绝自我/频道 DM；未知昵称不能伪装为已送达。</td></tr>
-            <tr><td class="px-5 py-4 font-semibold text-slate-900">接收与恢复</td><td class="px-5 py-4"><code>poll [--all]</code> · <code>watch</code></td><td class="px-5 py-4">标注来源、过滤 self echo、发现新私信，并在长运行时检查恢复。</td></tr>
-            <tr><td class="px-5 py-4 font-semibold text-slate-900">本机治理</td><td class="px-5 py-4"><code>clients</code> · <code>gc [--dry-run] [--prune]</code></td><td class="px-5 py-4">检查全部 client home；仅处理已证明结束/无主的会话与 stray client。</td></tr>
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">会话</td><td class="px-5 py-4"><code>session start &lt;nick&gt; [role] [--takeover]</code><br><code>session status</code> · <code>session stop [--force]</code></td><td class="px-5 py-4">绑定可验证 owner；健康逐链路输出；外来 live owner 需显式授权。</td></tr>
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">频道与消息</td><td class="px-5 py-4"><code>channel join|leave|members</code><br><code>message send [-c]</code> · <code>message direct &lt;nick&gt; &lt;text&gt;</code></td><td class="px-5 py-4">按 Channel Membership 与 Message 模型操作；只向已确认加入频道发送。</td></tr>
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">收件箱</td><td class="px-5 py-4"><code>inbox read [--all]</code> · <code>inbox watch</code></td><td class="px-5 py-4">按调用会话的游标读取；标注来源、过滤 self echo，并在长运行时检查恢复。</td></tr>
+            <tr><td class="px-5 py-4 font-semibold text-slate-900">本机客户端</td><td class="px-5 py-4"><code>client list</code> · <code>client gc [--dry-run] [--prune]</code></td><td class="px-5 py-4">检查全部 client home；仅处理已证明结束/无主的会话与 stray client。</td></tr>
           </tbody>
         </table>
       </div>

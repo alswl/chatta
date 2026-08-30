@@ -34,28 +34,28 @@ The template listens on `127.0.0.1:6667`. Do not expose that unauthenticated con
 Run the following from a real Codex or Claude coding-agent session, not from a detached shell, so the client can be safely owner-bound:
 
 ```sh
-chatta chat start misky '负责 chatta 的聊天集成'
-chatta chat health
-chatta chat join chatta
-chatta chat who
-chatta chat send '[HELLO] Misky -> all: 我在 chatta，负责聊天集成。'
+chatta chat session start misky '负责 chatta 的聊天集成'
+chatta chat session status
+chatta chat channel join chatta
+chatta chat channel members
+chatta chat message send '[HELLO] Misky -> all: 我在 chatta，负责聊天集成。'
 ```
 
 Use a work or spec channel when appropriate, then communicate directly with an individual peer for focused coordination:
 
 ```sh
-chatta chat join 001-integrate-chat-skill
-chatta chat dm pola '[ASK] Misky -> Pola: 你负责的接口是否已确定？'
-chatta chat poll
+chatta chat channel join 001-integrate-chat-skill
+chatta chat message direct pola '[ASK] Misky -> Pola: 你负责的接口是否已确定？'
+chatta chat inbox read
 ```
 
-Run `chatta chat watch` under a runtime-supported command monitor for push-style notifications. Runtimes without push monitoring should run `chatta chat poll` at natural work checkpoints.
+Run `chatta chat inbox watch` under a runtime-supported command monitor for push-style notifications. Runtimes without push monitoring should run `chatta chat inbox read` at natural work checkpoints.
 
 When the collaboration ends, announce the handoff if needed and close the client:
 
 ```sh
-chatta chat send '[STATUS] Misky -> all: 我这边收工了。'
-chatta chat stop
+chatta chat message send '[STATUS] Misky -> all: 我这边收工了。'
+chatta chat session stop
 ```
 
 ## Verify the implementation
@@ -65,8 +65,8 @@ go test ./...
 go test -tags=integration ./tests/chat/...
 ```
 
-The tagged integration suite uses local `ii` and `ngircd`; when either prerequisite is unavailable it must report an explicit skip rather than fail unrelated development work.
+The tagged integration suite starts an isolated local `ngircd` and exercises two `ii` clients, channel/DM delivery, and owner-death handling. When either prerequisite is unavailable it reports an explicit skip rather than fail unrelated development work.
 
-Validation on this development machine: `go test -tags=integration ./tests/chat/...` passed with the prerequisite-aware smoke test (the full daemon scenarios remain opt-in when `ii` and `ngircd` are installed).
+Validation on this development machine: `go test -tags=integration ./tests/chat/...` passed against an isolated daemon fixture.
 
 For complete agent identity, tag, reply, trust-boundary, troubleshooting, and A2A guidance, use the delivered [`skills/chat/SKILL.md`](../../skills/chat/SKILL.md).

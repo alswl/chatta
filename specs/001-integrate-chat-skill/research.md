@@ -59,13 +59,14 @@
 
 ## Decision 6: Keep CLI parsing thin and document the full command schema
 
-**Decision**: Add `chatta chat` with `start`, `health`, `send`, `join`, `part`, `dm`, `poll`, `watch`, `who`, `stop`, `clients`, and `gc`; reserve `_supervise` as a hidden implementation command.
+**Decision**: Group `chatta chat` commands by the entities they operate on: `session start|status|stop`, `channel join|leave|members`, `message send|direct`, `inbox read|watch`, and `client list|gc`. Keep the former flat commands as hidden compatibility aliases, and reserve `_supervise` as a hidden implementation command.
 
-**Rationale**: A nested command group leaves room for the existing CLI, aligns each source command to a discoverable public action, and keeps Cobra handlers focused on arguments and output.
+**Rationale**: The command tree now mirrors the domain model: session lifecycle, channel membership, outbound messages, per-invoker inbox cursors, and local-client administration. This keeps the public help discoverable as the command set grows, while aliases preserve existing SKILL and shell integrations.
 
 **Alternatives considered**:
 
 - Top-level commands: rejected because they would crowd `chatta` as the product grows.
+- Breaking rename: rejected because deployed SKILLs and shell scripts need a safe migration path.
 - One JSON-driven mega-command: rejected because it obscures shell and SKILL usage.
 
 ## Decision 7: Test from deterministic units through opt-in real-daemon smoke tests

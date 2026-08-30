@@ -19,9 +19,11 @@ import (
 )
 
 var (
-	chatLineRE  = regexp.MustCompile(`^(\d+) <([^>]*)> (.*)$`)
-	chatAnyRE   = regexp.MustCompile(`^(\d+) (.*)$`)
-	chatNamesRE = regexp.MustCompile(`^\d+ = (\S+) (.*)$`)
+	chatLineRE   = regexp.MustCompile(`^(\d+) <([^>]*)> (.*)$`)
+	chatAnyRE    = regexp.MustCompile(`^(\d+) (.*)$`)
+	chatNamesRE  = regexp.MustCompile(`^\d+ = (\S+) (.*)$`)
+	rawNamesRE   = regexp.MustCompile(`^\d+ :\S+ 353 \S+ = (\S+) :(.*)$`)
+	rawMessageRE = regexp.MustCompile(`^(\d+) :([^! ]+)!\S+ PRIVMSG \S+ :(.*)$`)
 )
 
 type II struct {
@@ -87,12 +89,11 @@ func WriteFIFO(path, line string, retries int) error {
 }
 
 func FIFOReader(path string) bool {
-	fd, err := unix.Open(path, unix.O_WRONLY|unix.O_NONBLOCK, 0)
-	if err != nil {
-		return false
-	}
-	_ = unix.Close(fd)
-	return true
+	// Opening and closing a writer can make ii observe EOF on its channel FIFO
+	// and reconnect. Inspect the existing descriptor instead of touching the
+	// transport path.
+	out, _ := exec.Command("lsof", "-t", path).Output()
+	return strings.TrimSpace(string(out)) != ""
 }
 
 func Tail(path string, offset int64) ([]string, int64, error) {
@@ -123,10 +124,14 @@ func Tail(path string, offset int64) ([]string, int64, error) {
 
 func ParseNames(line string) (string, []string, bool) {
 	m := chatNamesRE.FindStringSubmatch(line)
-	if m == nil {
-		return "", nil, false
+	if m != nil {
+		return m[1], strings.Fields(m[2]), true
 	}
-	return m[1], strings.Fields(m[2]), true
+	m = rawNamesRE.FindStringSubmatch(line)
+	if m != nil {
+		return m[1], strings.Fields(m[2]), true
+	}
+	return "", nil, false
 }
 
 func ParseLine(line string) (timestamp int64, nick, text string, ok bool) {
@@ -135,6 +140,10 @@ func ParseLine(line string) (timestamp int64, nick, text string, ok bool) {
 		return ts, m[2], m[3], err == nil
 	}
 	if m := chatAnyRE.FindStringSubmatch(line); m != nil {
+		if raw := rawMessageRE.FindStringSubmatch(line); raw != nil {
+			ts, err := strconv.ParseInt(raw[1], 10, 64)
+			return ts, raw[2], raw[3], err == nil
+		}
 		ts, err := strconv.ParseInt(m[1], 10, 64)
 		return ts, "", m[2], err == nil
 	}

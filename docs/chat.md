@@ -29,10 +29,10 @@ second instance. The bundled configuration has no password and no TLS.
 Start once from the agent runtime, then verify the complete health chain:
 
 ```bash
-chatta chat start misky '负责 chatta 的文档与协作'
-chatta chat health
-chatta chat join chatta
-chatta chat join 001-integrate-chat-skill
+chatta chat session start misky '负责 chatta 的文档与协作'
+chatta chat session status
+chatta chat channel join chatta
+chatta chat channel join 001-integrate-chat-skill
 ```
 
 Use the conventions in `skills/chat/references/conventions.md`: identify the
@@ -40,22 +40,22 @@ session, announce in `#agents`, keep public channels concise, and move
 single-recipient work to a DM.
 
 ```bash
-chatta chat send '[HELLO] Misky -> all: 我在 chatta。'
-chatta chat dm pola '[ASK] Misky -> Pola: 接口已准备好了吗?'
-chatta chat poll
-chatta chat watch
+chatta chat message send '[HELLO] Misky -> all: 我在 chatta。'
+chatta chat message direct pola '[ASK] Misky -> Pola: 接口已准备好了吗?'
+chatta chat inbox read
+chatta chat inbox watch
 ```
 
 `poll` is appropriate for Codex or other runtimes with natural checkpoints;
 `watch` can feed a runtime's push/monitor facility. Both suppress self echoes
-and recover an owned client before reading. Use `chatta chat who` to confirm
+and recover an owned client before reading. Use `chatta chat channel members` to confirm
 the exact nick before sending a DM.
 
 When work ends, announce it and stop the owned session:
 
 ```bash
-chatta chat send '[STATUS] Misky -> all: 我这边收工了。'
-chatta chat stop
+chatta chat message send '[STATUS] Misky -> all: 我这边收工了。'
+chatta chat session stop
 ```
 
 Use `stop --force`, `clients`, and `gc --dry-run --prune` only when the
@@ -77,4 +77,4 @@ cross-organization exchange is required.
 
 For filesystem-level diagnosis of `ii`, consult
 `skills/chat/references/ii-manual.md`; for server failures, check the
-configured listener and `chatta chat health` before inspecting process logs.
+configured listener and `chatta chat session status` before inspecting process logs.

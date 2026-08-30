@@ -37,32 +37,78 @@ func (m *Manager) Stop(force bool) error {
 }
 
 func (m *Manager) Survey() ([]ClientSurvey, error) {
-	root := filepath.Dir(m.Home)
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil, err
-	}
 	rows := make([]ClientSurvey, 0)
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		path := filepath.Join(root, e.Name(), "state.json")
+	for _, home := range m.clientHomes() {
+		path := filepath.Join(home, "state.json")
 		st, err := LoadState(path)
 		if err != nil {
 			continue
 		}
-		status := "down"
+		ownerState := "ended"
+		if ProcessAlive(st.Owner) {
+			ownerState = "alive"
+		}
+		supervisorState := "down"
 		if IsVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint) {
-			status = "alive"
+			supervisorState = "alive"
+		}
+		clientState := "down"
+		if FIFOReader(filepath.Join(home, "irc", st.Host, st.HomeChannel.Name, "in")) {
+			clientState = "alive"
+		}
+		iiPIDs, _ := iiPIDs(filepath.Join(home, "irc"))
+		if clientState == "down" && len(iiPIDs) > 0 {
+			clientState = "stray"
 		}
 		eligibility := "live owner"
-		if !ProcessAlive(st.Owner) {
+		if ownerState != "alive" {
 			eligibility = "owner ended"
 		}
-		rows = append(rows, ClientSurvey{ClientHome: filepath.Dir(path), SessionSummary: st.Nick, ClientProcessState: status, CleanupEligibility: eligibility})
+		rows = append(rows, ClientSurvey{ClientHome: filepath.Dir(path), SessionSummary: st.Nick, OwnerState: ownerState, SupervisorState: supervisorState, ClientProcessState: clientState, IIProcessCount: len(iiPIDs), CleanupEligibility: eligibility})
 	}
 	return rows, nil
+}
+
+func (m *Manager) clientHomes() []string {
+	roots := []string{m.Home, filepath.Dir(m.Home)}
+	if userHome, err := os.UserHomeDir(); err == nil {
+		agentRoot := filepath.Join(userHome, ".irc-agent")
+		if withinRoot(m.Home, agentRoot) {
+			roots = append(roots, agentRoot, filepath.Join(agentRoot, "clients"))
+		}
+	}
+	homes := make(map[string]struct{})
+	for _, root := range roots {
+		if root == "" {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(root, "state.json")); err == nil {
+			homes[root] = struct{}{}
+		}
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			home := filepath.Join(root, entry.Name())
+			if _, err := os.Stat(filepath.Join(home, "state.json")); err == nil {
+				homes[home] = struct{}{}
+			}
+		}
+	}
+	result := make([]string, 0, len(homes))
+	for home := range homes {
+		result = append(result, home)
+	}
+	return result
+}
+
+func withinRoot(path, root string) bool {
+	path, root = filepath.Clean(path), filepath.Clean(root)
+	return path == root || strings.HasPrefix(path, root+string(filepath.Separator))
 }
 
 func (m *Manager) GC(dryRun, prune bool) (string, error) {
@@ -72,12 +118,25 @@ func (m *Manager) GC(dryRun, prune bool) (string, error) {
 	}
 	var b strings.Builder
 	for _, row := range rows {
-		b.WriteString(fmt.Sprintf("%s: %s (%s)\n", row.SessionSummary, row.ClientProcessState, row.CleanupEligibility))
-		if dryRun || row.CleanupEligibility == "live owner" {
+		b.WriteString(fmt.Sprintf("%s: %s, ii=%d (%s)\n", row.SessionSummary, row.ClientProcessState, row.IIProcessCount, row.CleanupEligibility))
+		orphanII := row.SupervisorState != "alive" && row.IIProcessCount > 0
+		if dryRun {
+			if orphanII {
+				b.WriteString("  would reap orphan ii process(es)\n")
+			}
 			continue
 		}
 		st, err := LoadState(filepath.Join(row.ClientHome, "state.json"))
 		if err != nil {
+			continue
+		}
+		if orphanII {
+			if err := ReapStrayII(filepath.Join(row.ClientHome, "irc")); err != nil {
+				return "", err
+			}
+			b.WriteString("  reaped orphan ii process(es)\n")
+		}
+		if row.CleanupEligibility == "live owner" {
 			continue
 		}
 		if st.SupervisorPID > 0 {
@@ -85,8 +144,10 @@ func (m *Manager) GC(dryRun, prune bool) (string, error) {
 				return "", err
 			}
 		}
-		if err := ReapStrayII(filepath.Join(row.ClientHome, "irc")); err != nil {
-			return "", err
+		if !orphanII {
+			if err := ReapStrayII(filepath.Join(row.ClientHome, "irc")); err != nil {
+				return "", err
+			}
 		}
 		if prune {
 			if err := os.RemoveAll(row.ClientHome); err != nil {

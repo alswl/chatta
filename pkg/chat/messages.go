@@ -141,7 +141,7 @@ func (m *Manager) Poll(replay bool) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	cursorPath := CursorPath(m.Home, st.SessionID)
+	cursorPath := CursorPath(m.Home, InvocationSessionID(st.SessionID))
 	cursor, _ := LoadCursors(cursorPath)
 	if replay {
 		cursor.Offsets = map[string]int64{}
@@ -191,6 +191,7 @@ func (m *Manager) Watch(done <-chan struct{}, emit func(string)) error {
 	if err != nil {
 		return err
 	}
+	watchOwner, watchOwnerErr := m.findOwner()
 	root := filepath.Join(m.Paths.Conversations, st.Host)
 	offsets := map[string]int64{}
 	entries, err := os.ReadDir(root)
@@ -215,6 +216,9 @@ func (m *Manager) Watch(done <-chan struct{}, emit func(string)) error {
 				return err
 			}
 		case <-ticker.C:
+		}
+		if watchOwnerErr == nil && !ProcessAlive(watchOwner) {
+			return nil
 		}
 		entries, err = os.ReadDir(root)
 		if err != nil {

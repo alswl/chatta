@@ -18,3 +18,21 @@ func TestSurveyEmptyHome(t *testing.T) {
 		t.Fatalf("unexpected client rows: %+v", rows)
 	}
 }
+
+func TestSurveyFindsSiblingClientHomes(t *testing.T) {
+	root := t.TempDir()
+	current := root + "/current"
+	other := root + "/other"
+	for _, home := range []string{current, other} {
+		state := testSession()
+		state.Nick = home[len(root)+1:]
+		if err := SaveState(ResolvePaths(home).State, state); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := NewManager(config.ChatConfig{Home: current})
+	rows, err := m.Survey()
+	if err != nil || len(rows) != 2 {
+		t.Fatalf("expected two homes, got %+v (%v)", rows, err)
+	}
+}

@@ -18,6 +18,9 @@ func WorktreeHome(root, worktree string) string {
 			root = filepath.Join(h, ".irc-agent", "clients")
 		}
 	}
+	if resolved, err := filepath.EvalSymlinks(worktree); err == nil {
+		worktree = resolved
+	}
 	sum := sha256.Sum256([]byte(worktree))
 	base := filepath.Base(filepath.Clean(worktree))
 	if base == "." || base == string(filepath.Separator) || base == "" {
