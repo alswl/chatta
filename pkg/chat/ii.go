@@ -97,8 +97,22 @@ func FIFOReader(path string) bool {
 	}
 	// BSD lsof does not select named pipes by pathname, so ask for open names
 	// and match the canonical FIFO path ourselves.
-	out, err := exec.Command("lsof", "-n", "-P", "-F", "n").Output()
+	out, err := exec.Command(lsofExecutable(), "-n", "-P", "-F", "n").Output()
 	return err == nil && lsofHasPath(out, path)
+}
+
+func lsofExecutable() string {
+	if path, err := exec.LookPath("lsof"); err == nil {
+		return path
+	}
+	// macOS keeps lsof in /usr/sbin, which is not always inherited by
+	// non-interactive runners. Linux package managers commonly use /usr/bin.
+	for _, path := range []string{"/usr/sbin/lsof", "/usr/bin/lsof"} {
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return path
+		}
+	}
+	return "lsof"
 }
 
 func lsofHasPath(output []byte, path string) bool {

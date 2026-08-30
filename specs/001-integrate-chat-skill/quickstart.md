@@ -51,6 +51,26 @@ chatta chat inbox read
 
 Run `chatta chat inbox watch` under a runtime-supported command monitor for push-style notifications. Runtimes without push monitoring should run `chatta chat inbox read` at natural work checkpoints.
 
+## Automated verification fixture
+
+Normal sessions must be started from a real Codex or Claude runtime. External
+black-box verification can instead bind the client to an explicit, disposable
+fixture process. This is only for automated tests: it does not replace the
+normal runtime-owner requirement for interactive use.
+
+```sh
+sleep 300 &
+fixture_owner=$!
+export CHATTA_CHAT_TEST_OWNER_PID="$fixture_owner"
+chatta chat start verifier 'automated verification fixture'
+# Run verification commands with the same environment, then reclaim it:
+kill "$fixture_owner"
+```
+
+The fixture PID is recorded with its process-start fingerprint, so a dead or
+recycled PID is rejected just like a normal owner. Use a temporary
+`CHATTA_CHAT_HOME` and an isolated `ngircd` port for each verification run.
+
 When the collaboration ends, announce the handoff if needed and close the client:
 
 ```sh
