@@ -3,6 +3,7 @@
 package chat
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -74,5 +75,11 @@ func TestLsofHasPathRequiresAnExactNameRecord(t *testing.T) {
 	}
 	if lsofHasPath(output, path+"-backup") {
 		t.Fatal("prefix match must not make a different FIFO healthy")
+	}
+}
+
+func TestLsofExecutableResolvesOnThisPlatform(t *testing.T) {
+	if _, err := os.Stat(lsofExecutable()); err != nil {
+		t.Fatalf("lsof executable is not available: %v", err)
 	}
 }

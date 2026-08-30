@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: make test
+
+  build:
+    needs: test
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: make build GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} VERSION=${{ github.ref_name }}
+      - name: Package
+        run: |
+          asset="chatta-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz"
+          tar -C bin -czf "$asset" "chatta-${{ matrix.goos }}-${{ matrix.goarch }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatta-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: chatta-*.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum *.tar.gz > checksums.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: dist/*

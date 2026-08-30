@@ -11,10 +11,15 @@ import (
 	"strings"
 )
 
+const testOwnerPIDEnv = "CHATTA_CHAT_TEST_OWNER_PID"
+
 // FindAgentOwner walks the command ancestry looking for the invoking agent
 // runtime. Shell wrappers are deliberately skipped because they outlive only
 // the individual command, not the interactive agent session.
 func FindAgentOwner() (OwnerBinding, error) {
+	if owner, configured, err := testOwner(); configured {
+		return owner, err
+	}
 	pid := os.Getppid()
 	for i := 0; i < 32 && pid > 1; i++ {
 		cmdline, ppid, err := processCommand(pid)
@@ -29,6 +34,26 @@ func FindAgentOwner() (OwnerBinding, error) {
 		pid = ppid
 	}
 	return OwnerBinding{}, fmt.Errorf("could not find the Claude/Codex session that owns this client")
+}
+
+// testOwner is an explicit opt-in for external black-box verification. It
+// preserves the normal PID/start-fingerprint ownership checks while allowing
+// a fixture to provide a durable parent process without impersonating a
+// Codex or Claude runtime.
+func testOwner() (OwnerBinding, bool, error) {
+	raw, configured := os.LookupEnv(testOwnerPIDEnv)
+	if !configured || raw == "" {
+		return OwnerBinding{}, false, nil
+	}
+	pid, err := strconv.Atoi(raw)
+	if err != nil || pid <= 1 {
+		return OwnerBinding{}, true, fmt.Errorf("invalid %s %q", testOwnerPIDEnv, raw)
+	}
+	owner := OwnerBinding{PID: pid, StartFingerprint: ProcessStart(pid), Runtime: "verification-fixture"}
+	if !ProcessAlive(owner) {
+		return OwnerBinding{}, true, fmt.Errorf("verification owner %d is not running", pid)
+	}
+	return owner, true, nil
 }
 
 func processCommand(pid int) (string, int, error) {
