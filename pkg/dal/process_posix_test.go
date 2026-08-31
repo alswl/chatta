@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package chat
+package dal
 
 import (
 	"os"

@@ -1,8 +1,9 @@
 //go:build darwin || linux
 
-package chat
+package dal
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -33,8 +34,17 @@ func StartProcess(name string, args ...string) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
+// runShort runs a short-lived helper process (ps, lsof, kill) with a bounded
+// timeout so a stuck subprocess cannot wedge a health check or self-heal
+// path forever.
+func runShort(name string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), execTimeout)
+	defer cancel()
+	return exec.CommandContext(ctx, name, args...).Output()
+}
+
 func ProcessCommand(pid int) string {
-	out, _ := exec.Command("ps", "-o", "command=", "-p", strconv.Itoa(pid)).Output()
+	out, _ := runShort("ps", "-o", "command=", "-p", strconv.Itoa(pid))
 	return strings.TrimSpace(string(out))
 }
 
@@ -85,7 +95,7 @@ func StopVerifiedSupervisor(pid int, startFingerprint string) error {
 }
 
 func ReapStrayII(conversations string) error {
-	pids, err := iiPIDs(conversations)
+	pids, err := IIPIDs(conversations)
 	if err != nil {
 		return err
 	}
@@ -101,8 +111,10 @@ func ReapStrayII(conversations string) error {
 	return nil
 }
 
-func iiPIDs(conversations string) ([]int, error) {
-	out, err := exec.Command("ps", "-axo", "pid=,command=").Output()
+// IIPIDs lists the PIDs of ii processes attached to this client's
+// conversations directory, without signalling them.
+func IIPIDs(conversations string) ([]int, error) {
+	out, err := runShort("ps", "-axo", "pid=,command=")
 	if err != nil {
 		return nil, err
 	}

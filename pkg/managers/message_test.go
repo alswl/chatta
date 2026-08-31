@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package chat
+package managers
 
 import (
 	"os"
@@ -37,5 +37,12 @@ func TestRenderLineLabelsDirectMessages(t *testing.T) {
 	line := renderLine("1700000000 <pola> [ASK] hello", "pola")
 	if !strings.Contains(line, "(DM)") || !strings.Contains(line, "<pola>") {
 		t.Fatalf("unexpected rendering: %s", line)
+	}
+}
+
+func TestSplitUTF8RespectsByteLimit(t *testing.T) {
+	parts := splitUTF8("你好世界", 7)
+	if len(parts) != 2 || len([]byte(parts[0])) > 7 || len([]byte(parts[1])) > 7 {
+		t.Fatalf("unexpected chunks: %#v", parts)
 	}
 }

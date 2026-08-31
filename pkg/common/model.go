@@ -1,4 +1,6 @@
-package chat
+// Package common holds types shared across the chat layers: session state,
+// health reports, and other data exchanged between dal, managers, and services.
+package common
 
 import "time"
 

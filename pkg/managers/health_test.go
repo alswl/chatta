@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package chat
+package managers
 
 import (
 	"testing"

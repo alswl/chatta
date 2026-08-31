@@ -1,4 +1,4 @@
-package chat
+package dal
 
 import (
 	"encoding/json"
@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/alswl/chatta/pkg/common"
 )
 
-func ValidateSession(s ChatSession) error {
+func ValidateSession(s common.ChatSession) error {
 	if s.SchemaVersion == 0 {
-		s.SchemaVersion = StateSchemaVersion
+		s.SchemaVersion = common.StateSchemaVersion
 	}
-	if s.SchemaVersion != StateSchemaVersion {
+	if s.SchemaVersion != common.StateSchemaVersion {
 		return fmt.Errorf("unsupported state schema version %d", s.SchemaVersion)
 	}
 	if s.Nick == "" || s.Host == "" || s.Port < 1 || s.Port > 65535 || s.Owner.PID <= 0 || s.Owner.StartFingerprint == "" || s.HomeChannel.Name == "" || len(s.Channels) == 0 {
@@ -23,12 +25,12 @@ func ValidateSession(s ChatSession) error {
 	}
 	return ValidateChannels(s.Channels, s.HomeChannel.Name)
 }
-func LoadState(path string) (ChatSession, error) {
+func LoadState(path string) (common.ChatSession, error) {
 	b, e := os.ReadFile(path)
 	if e != nil {
-		return ChatSession{}, e
+		return common.ChatSession{}, e
 	}
-	var s ChatSession
+	var s common.ChatSession
 	if e = json.Unmarshal(b, &s); e != nil {
 		return s, fmt.Errorf("malformed state: %w", e)
 	}
@@ -37,8 +39,8 @@ func LoadState(path string) (ChatSession, error) {
 	}
 	return s, nil
 }
-func SaveState(path string, s ChatSession) error {
-	s.SchemaVersion = StateSchemaVersion
+func SaveState(path string, s common.ChatSession) error {
+	s.SchemaVersion = common.StateSchemaVersion
 	if e := ValidateSession(s); e != nil {
 		return e
 	}
@@ -66,21 +68,21 @@ func SaveState(path string, s ChatSession) error {
 	}
 	return e
 }
-func LoadCursors(path string) (MessageCursor, error) {
+func LoadCursors(path string) (common.MessageCursor, error) {
 	b, e := os.ReadFile(path)
 	if e != nil {
-		return MessageCursor{Offsets: map[string]int64{}}, e
+		return common.MessageCursor{Offsets: map[string]int64{}}, e
 	}
-	var c MessageCursor
+	var c common.MessageCursor
 	if e = json.Unmarshal(b, &c); e != nil {
-		return MessageCursor{Offsets: map[string]int64{}}, fmt.Errorf("malformed cursors: %w", e)
+		return common.MessageCursor{Offsets: map[string]int64{}}, fmt.Errorf("malformed cursors: %w", e)
 	}
 	if c.Offsets == nil {
 		c.Offsets = map[string]int64{}
 	}
 	return c, nil
 }
-func SaveCursors(path string, c MessageCursor) error {
+func SaveCursors(path string, c common.MessageCursor) error {
 	if c.Offsets == nil {
 		c.Offsets = map[string]int64{}
 	}

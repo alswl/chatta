@@ -1,11 +1,12 @@
 //go:build darwin || linux
 
-package chat
+package managers
 
 import (
 	"testing"
 
 	"github.com/alswl/chatta/pkg/config"
+	"github.com/alswl/chatta/pkg/dal"
 )
 
 func TestSurveyEmptyHome(t *testing.T) {
@@ -26,7 +27,7 @@ func TestSurveyFindsSiblingClientHomes(t *testing.T) {
 	for _, home := range []string{current, other} {
 		state := testSession()
 		state.Nick = home[len(root)+1:]
-		if err := SaveState(ResolvePaths(home).State, state); err != nil {
+		if err := dal.SaveState(dal.ResolvePaths(home).State, state); err != nil {
 			t.Fatal(err)
 		}
 	}

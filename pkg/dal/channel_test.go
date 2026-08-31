@@ -1,6 +1,10 @@
-package chat
+package dal
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/alswl/chatta/pkg/common"
+)
 
 func TestNormalizeChannel(t *testing.T) {
 	if got := NormalizeChannel(" Project/Alpha "); got != "#project-alpha" {
@@ -11,14 +15,14 @@ func TestNormalizeChannel(t *testing.T) {
 	}
 }
 func TestChannelOrderingAndHomeProtection(t *testing.T) {
-	cs := []ChannelMembership{{Name: "#lobby"}, {Name: "#work"}}
+	cs := []common.ChannelMembership{{Name: "#lobby"}, {Name: "#work"}}
 	if e := ValidateChannels(cs, "#lobby"); e != nil {
 		t.Fatal(e)
 	}
 	if e := CanPart("#lobby", "#lobby"); e == nil {
 		t.Fatal("home must be protected")
 	}
-	if e := ValidateChannels([]ChannelMembership{{Name: "#work"}, {Name: "#lobby"}}, "#lobby"); e == nil {
+	if e := ValidateChannels([]common.ChannelMembership{{Name: "#work"}, {Name: "#lobby"}}, "#lobby"); e == nil {
 		t.Fatal("home must be first")
 	}
 }

@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package chat
+package managers
 
 import (
 	"encoding/json"
@@ -8,55 +8,58 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/alswl/chatta/pkg/common"
+	"github.com/alswl/chatta/pkg/dal"
 )
 
 func (m *Manager) Stop(force bool) error {
-	st, err := LoadState(m.StatePath)
+	st, err := dal.LoadState(m.StatePath)
 	if err != nil {
 		return err
 	}
-	if !force && ProcessAlive(st.Owner) {
-		current, ownerErr := FindAgentOwner()
-		if ownerErr != nil || !sameOwner(st.Owner, current) {
+	if !force && dal.ProcessAlive(st.Owner) {
+		current, ownerErr := dal.FindAgentOwner()
+		if ownerErr != nil || !dal.SameOwner(st.Owner, current) {
 			return fmt.Errorf("this client belongs to another live agent; use --force after confirmation")
 		}
 	}
 	server := filepath.Join(m.Paths.Conversations, st.Host)
-	_ = WriteFIFO(filepath.Join(server, "in"), "/q leaving", 0)
+	_ = dal.WriteFIFO(filepath.Join(server, "in"), "/q leaving", 0)
 	if st.SupervisorPID > 0 {
-		if err := StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint); err != nil {
+		if err := dal.StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint); err != nil {
 			return err
 		}
 	}
-	if err := ReapStrayII(m.Paths.Conversations); err != nil {
+	if err := dal.ReapStrayII(m.Paths.Conversations); err != nil {
 		return err
 	}
 	st.SupervisorPID = 0
 	st.SupervisorStartFingerprint = ""
-	return SaveState(m.StatePath, st)
+	return dal.SaveState(m.StatePath, st)
 }
 
-func (m *Manager) Survey() ([]ClientSurvey, error) {
-	rows := make([]ClientSurvey, 0)
+func (m *Manager) Survey() ([]common.ClientSurvey, error) {
+	rows := make([]common.ClientSurvey, 0)
 	for _, home := range m.clientHomes() {
 		path := filepath.Join(home, "state.json")
-		st, err := LoadState(path)
+		st, err := dal.LoadState(path)
 		if err != nil {
 			continue
 		}
 		ownerState := "ended"
-		if ProcessAlive(st.Owner) {
+		if dal.ProcessAlive(st.Owner) {
 			ownerState = "alive"
 		}
 		supervisorState := "down"
-		if IsVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint) {
+		if dal.IsVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint) {
 			supervisorState = "alive"
 		}
 		clientState := "down"
-		if FIFOReader(filepath.Join(home, "irc", st.Host, st.HomeChannel.Name, "in")) {
+		if dal.FIFOReader(filepath.Join(home, "irc", st.Host, st.HomeChannel.Name, "in")) {
 			clientState = "alive"
 		}
-		iiPIDs, _ := iiPIDs(filepath.Join(home, "irc"))
+		iiPIDs, _ := dal.IIPIDs(filepath.Join(home, "irc"))
 		if clientState == "down" && len(iiPIDs) > 0 {
 			clientState = "stray"
 		}
@@ -64,7 +67,7 @@ func (m *Manager) Survey() ([]ClientSurvey, error) {
 		if ownerState != "alive" {
 			eligibility = "owner ended"
 		}
-		rows = append(rows, ClientSurvey{ClientHome: filepath.Dir(path), SessionSummary: st.Nick, OwnerState: ownerState, SupervisorState: supervisorState, ClientProcessState: clientState, IIProcessCount: len(iiPIDs), CleanupEligibility: eligibility})
+		rows = append(rows, common.ClientSurvey{ClientHome: filepath.Dir(path), SessionSummary: st.Nick, OwnerState: ownerState, SupervisorState: supervisorState, ClientProcessState: clientState, IIProcessCount: len(iiPIDs), CleanupEligibility: eligibility})
 	}
 	return rows, nil
 }
@@ -126,12 +129,12 @@ func (m *Manager) GC(dryRun, prune bool) (string, error) {
 			}
 			continue
 		}
-		st, err := LoadState(filepath.Join(row.ClientHome, "state.json"))
+		st, err := dal.LoadState(filepath.Join(row.ClientHome, "state.json"))
 		if err != nil {
 			continue
 		}
 		if orphanII {
-			if err := ReapStrayII(filepath.Join(row.ClientHome, "irc")); err != nil {
+			if err := dal.ReapStrayII(filepath.Join(row.ClientHome, "irc")); err != nil {
 				return "", err
 			}
 			b.WriteString("  reaped orphan ii process(es)\n")
@@ -140,12 +143,12 @@ func (m *Manager) GC(dryRun, prune bool) (string, error) {
 			continue
 		}
 		if st.SupervisorPID > 0 {
-			if err := StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint); err != nil {
+			if err := dal.StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint); err != nil {
 				return "", err
 			}
 		}
 		if !orphanII {
-			if err := ReapStrayII(filepath.Join(row.ClientHome, "irc")); err != nil {
+			if err := dal.ReapStrayII(filepath.Join(row.ClientHome, "irc")); err != nil {
 				return "", err
 			}
 		}
@@ -158,7 +161,7 @@ func (m *Manager) GC(dryRun, prune bool) (string, error) {
 	return b.String(), nil
 }
 
-func (m *Manager) SaveSurvey(path string, rows []ClientSurvey) error {
+func (m *Manager) SaveSurvey(path string, rows []common.ClientSurvey) error {
 	b, err := json.MarshalIndent(rows, "", "  ")
 	if err != nil {
 		return err

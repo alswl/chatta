@@ -1,14 +1,15 @@
 //go:build darwin || linux
 
-package chat
+package dal
 
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/alswl/chatta/pkg/common"
 )
 
 const testOwnerPIDEnv = "CHATTA_CHAT_TEST_OWNER_PID"
@@ -16,7 +17,7 @@ const testOwnerPIDEnv = "CHATTA_CHAT_TEST_OWNER_PID"
 // FindAgentOwner walks the command ancestry looking for the invoking agent
 // runtime. Shell wrappers are deliberately skipped because they outlive only
 // the individual command, not the interactive agent session.
-func FindAgentOwner() (OwnerBinding, error) {
+func FindAgentOwner() (common.OwnerBinding, error) {
 	if owner, configured, err := testOwner(); configured {
 		return owner, err
 	}
@@ -24,40 +25,40 @@ func FindAgentOwner() (OwnerBinding, error) {
 	for i := 0; i < 32 && pid > 1; i++ {
 		cmdline, ppid, err := processCommand(pid)
 		if err != nil {
-			return OwnerBinding{}, err
+			return common.OwnerBinding{}, err
 		}
 		base := filepath.Base(strings.Fields(cmdline)[0])
 		base = strings.TrimLeft(base, "-")
 		if strings.Contains(base, "claude") || strings.Contains(base, "codex") {
-			return OwnerBinding{PID: pid, StartFingerprint: ProcessStart(pid), Runtime: base}, nil
+			return common.OwnerBinding{PID: pid, StartFingerprint: ProcessStart(pid), Runtime: base}, nil
 		}
 		pid = ppid
 	}
-	return OwnerBinding{}, fmt.Errorf("could not find the Claude/Codex session that owns this client")
+	return common.OwnerBinding{}, fmt.Errorf("could not find the Claude/Codex session that owns this client")
 }
 
 // testOwner is an explicit opt-in for external black-box verification. It
 // preserves the normal PID/start-fingerprint ownership checks while allowing
 // a fixture to provide a durable parent process without impersonating a
 // Codex or Claude runtime.
-func testOwner() (OwnerBinding, bool, error) {
+func testOwner() (common.OwnerBinding, bool, error) {
 	raw, configured := os.LookupEnv(testOwnerPIDEnv)
 	if !configured || raw == "" {
-		return OwnerBinding{}, false, nil
+		return common.OwnerBinding{}, false, nil
 	}
 	pid, err := strconv.Atoi(raw)
 	if err != nil || pid <= 1 {
-		return OwnerBinding{}, true, fmt.Errorf("invalid %s %q", testOwnerPIDEnv, raw)
+		return common.OwnerBinding{}, true, fmt.Errorf("invalid %s %q", testOwnerPIDEnv, raw)
 	}
-	owner := OwnerBinding{PID: pid, StartFingerprint: ProcessStart(pid), Runtime: "verification-fixture"}
+	owner := common.OwnerBinding{PID: pid, StartFingerprint: ProcessStart(pid), Runtime: "verification-fixture"}
 	if !ProcessAlive(owner) {
-		return OwnerBinding{}, true, fmt.Errorf("verification owner %d is not running", pid)
+		return common.OwnerBinding{}, true, fmt.Errorf("verification owner %d is not running", pid)
 	}
 	return owner, true, nil
 }
 
 func processCommand(pid int) (string, int, error) {
-	out, err := exec.Command("ps", "-o", "ppid=,command=", "-p", strconv.Itoa(pid)).Output()
+	out, err := runShort("ps", "-o", "ppid=,command=", "-p", strconv.Itoa(pid))
 	if err != nil {
 		return "", 0, err
 	}
@@ -77,18 +78,18 @@ func processCommand(pid int) (string, int, error) {
 }
 
 func ProcessStart(pid int) string {
-	out, err := exec.Command("ps", "-o", "lstart=", "-p", strconv.Itoa(pid)).Output()
+	out, err := runShort("ps", "-o", "lstart=", "-p", strconv.Itoa(pid))
 	if err != nil {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
 }
 
-func ProcessAlive(binding OwnerBinding) bool {
+func ProcessAlive(binding common.OwnerBinding) bool {
 	if binding.PID <= 0 || binding.StartFingerprint == "" {
 		return false
 	}
-	if err := exec.Command("kill", "-0", strconv.Itoa(binding.PID)).Run(); err != nil {
+	if _, err := runShort("kill", "-0", strconv.Itoa(binding.PID)); err != nil {
 		return false
 	}
 	return ProcessStart(binding.PID) == binding.StartFingerprint
@@ -103,11 +104,16 @@ func RuntimeSessionID() string {
 	return ""
 }
 
-func sameOwner(left, right OwnerBinding) bool {
+// SameOwner reports whether two bindings share a PID and start fingerprint.
+// It does not check liveness — pair with ProcessAlive when that matters.
+func SameOwner(left, right common.OwnerBinding) bool {
 	return left.PID > 0 && left.PID == right.PID && left.StartFingerprint != "" && left.StartFingerprint == right.StartFingerprint
 }
 
-func ownerSessionID(owner OwnerBinding) string {
+// OwnerSessionID derives a session identifier for an owner binding,
+// preferring the runtime's own session id when the calling process
+// exposes one.
+func OwnerSessionID(owner common.OwnerBinding) string {
 	if id := RuntimeSessionID(); id != "" {
 		return id
 	}
@@ -119,7 +125,7 @@ func InvocationSessionID(fallback string) string {
 		return id
 	}
 	if owner, err := FindAgentOwner(); err == nil {
-		return ownerSessionID(owner)
+		return OwnerSessionID(owner)
 	}
 	return fallback
 }

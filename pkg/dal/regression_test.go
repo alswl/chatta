@@ -1,4 +1,4 @@
-package chat
+package dal
 
 import (
 	"os"
@@ -17,12 +17,5 @@ func TestMalformedStateIsRejected(t *testing.T) {
 	}
 	if _, err := LoadState(paths.State); err == nil {
 		t.Fatal("expected malformed state error")
-	}
-}
-
-func TestSplitUTF8RespectsByteLimit(t *testing.T) {
-	parts := splitUTF8("你好世界", 7)
-	if len(parts) != 2 || len([]byte(parts[0])) > 7 || len([]byte(parts[1])) > 7 {
-		t.Fatalf("unexpected chunks: %#v", parts)
 	}
 }
