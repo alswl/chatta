@@ -1,13 +1,16 @@
 //go:build darwin || linux
 
-package chat
+package managers
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/alswl/chatta/pkg/dal"
 )
 
 func splitUTF8(text string, limit int) []string {
@@ -43,7 +46,7 @@ func (m *Manager) Send(channel, text string) error {
 	}
 	target := st.HomeChannel.Name
 	if channel != "" {
-		target = NormalizeChannel(channel)
+		target = dal.NormalizeChannel(channel)
 	}
 	found := false
 	for _, c := range st.Channels {
@@ -64,7 +67,7 @@ func (m *Manager) Send(channel, text string) error {
 	}
 	fifo := filepath.Join(m.Paths.Conversations, st.Host, target, "in")
 	for _, part := range parts {
-		if err := WriteFIFO(fifo, part, 1); err != nil {
+		if err := dal.WriteFIFO(fifo, part, 1); err != nil {
 			return fmt.Errorf("send: %w", err)
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -90,7 +93,7 @@ func (m *Manager) DM(nick, text string) error {
 	offset := fileSize(serverOut)
 	firstUnsent := 0
 	if _, err := os.Stat(query); os.IsNotExist(err) {
-		if err := WriteFIFO(filepath.Join(server, "in"), "/j "+nick+" "+parts[0], 1); err != nil {
+		if err := dal.WriteFIFO(filepath.Join(server, "in"), "/j "+nick+" "+parts[0], 1); err != nil {
 			return err
 		}
 		firstUnsent = 1
@@ -106,7 +109,7 @@ func (m *Manager) DM(nick, text string) error {
 		}
 	}
 	for _, part := range parts[firstUnsent:] {
-		if err := WriteFIFO(query, part, 1); err != nil {
+		if err := dal.WriteFIFO(query, part, 1); err != nil {
 			return err
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -120,7 +123,7 @@ func (m *Manager) DM(nick, text string) error {
 func waitForAbsentNick(path string, offset int64, nick string) error {
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		lines, _, _ := Tail(path, offset)
+		lines, _, _ := dal.Tail(path, offset)
 		for _, line := range lines {
 			if strings.Contains(line, nick) && strings.Contains(strings.ToLower(line), "no such nick") {
 				return fmt.Errorf("direct message target %q is absent", nick)
@@ -141,8 +144,8 @@ func (m *Manager) Poll(replay bool) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	cursorPath := CursorPath(m.Home, InvocationSessionID(st.SessionID))
-	cursor, _ := LoadCursors(cursorPath)
+	cursorPath := dal.CursorPath(m.Home, dal.InvocationSessionID(st.SessionID))
+	cursor, _ := dal.LoadCursors(cursorPath)
 	if replay {
 		cursor.Offsets = map[string]int64{}
 	}
@@ -153,12 +156,12 @@ func (m *Manager) Poll(replay bool) ([]string, error) {
 		}
 		name := entry.Name()
 		out := filepath.Join(root, name, "out")
-		lines, next, err := Tail(out, cursor.Offsets[name])
+		lines, next, err := dal.Tail(out, cursor.Offsets[name])
 		if err != nil {
 			return nil, err
 		}
 		for _, line := range lines {
-			_, nick, _, ok := ParseLine(line)
+			_, nick, _, ok := dal.ParseLine(line)
 			if ok && nick == st.Nick {
 				continue
 			}
@@ -167,11 +170,11 @@ func (m *Manager) Poll(replay bool) ([]string, error) {
 		cursor.Offsets[name] = next
 	}
 	cursor.InvokerKey = st.SessionID
-	return result, SaveCursors(cursorPath, cursor)
+	return result, dal.SaveCursors(cursorPath, cursor)
 }
 
 func renderLine(line, source string) string {
-	ts, nick, text, ok := ParseLine(line)
+	ts, nick, text, ok := dal.ParseLine(line)
 	if !ok {
 		return line
 	}
@@ -186,7 +189,9 @@ func renderLine(line, source string) string {
 	return fmt.Sprintf("%s (%s) <%s> %s", stamp, label, nick, text)
 }
 
-func (m *Manager) Watch(done <-chan struct{}, emit func(string)) error {
+// Watch streams incoming messages until ctx is cancelled, the owning
+// process exits, or the client cannot be recovered.
+func (m *Manager) Watch(ctx context.Context, emit func(string)) error {
 	st, err := m.Ensure()
 	if err != nil {
 		return err
@@ -209,7 +214,7 @@ func (m *Manager) Watch(done <-chan struct{}, emit func(string)) error {
 	defer check.Stop()
 	for {
 		select {
-		case <-done:
+		case <-ctx.Done():
 			return nil
 		case <-check.C:
 			if _, err := m.Ensure(); err != nil {
@@ -217,7 +222,7 @@ func (m *Manager) Watch(done <-chan struct{}, emit func(string)) error {
 			}
 		case <-ticker.C:
 		}
-		if watchOwnerErr == nil && !ProcessAlive(watchOwner) {
+		if watchOwnerErr == nil && !dal.ProcessAlive(watchOwner) {
 			return nil
 		}
 		entries, err = os.ReadDir(root)
@@ -229,9 +234,9 @@ func (m *Manager) Watch(done <-chan struct{}, emit func(string)) error {
 				continue
 			}
 			name := entry.Name()
-			lines, next, _ := Tail(filepath.Join(root, name, "out"), offsets[name])
+			lines, next, _ := dal.Tail(filepath.Join(root, name, "out"), offsets[name])
 			for _, line := range lines {
-				_, nick, _, ok := ParseLine(line)
+				_, nick, _, ok := dal.ParseLine(line)
 				if ok && nick == st.Nick {
 					continue
 				}
@@ -249,7 +254,7 @@ func (m *Manager) Who(channel string) ([]string, error) {
 	}
 	target := st.HomeChannel.Name
 	if channel != "" {
-		target = NormalizeChannel(channel)
+		target = dal.NormalizeChannel(channel)
 	}
 	joined := false
 	for _, membership := range st.Channels {
@@ -264,14 +269,14 @@ func (m *Manager) Who(channel string) ([]string, error) {
 	server := filepath.Join(m.Paths.Conversations, st.Host)
 	out := filepath.Join(server, "out")
 	offset := fileSize(out)
-	if err := WriteFIFO(filepath.Join(server, "in"), "/NAMES "+target, 1); err != nil {
+	if err := dal.WriteFIFO(filepath.Join(server, "in"), "/NAMES "+target, 1); err != nil {
 		return nil, err
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		lines, _, _ := Tail(out, offset)
+		lines, _, _ := dal.Tail(out, offset)
 		for _, line := range lines {
-			name, names, ok := ParseNames(line)
+			name, names, ok := dal.ParseNames(line)
 			if !ok || name != target {
 				continue
 			}

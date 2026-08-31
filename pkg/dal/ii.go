@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package chat
+package dal
 
 import (
 	"errors"
@@ -15,8 +15,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alswl/chatta/pkg/common"
 	"golang.org/x/sys/unix"
 )
+
+// execTimeout is the bound runShort applies to every helper process it runs.
+const execTimeout = 5 * time.Second
 
 var (
 	chatLineRE   = regexp.MustCompile(`^(\d+) <([^>]*)> (.*)$`)
@@ -32,7 +36,7 @@ type II struct {
 	Cmd   *exec.Cmd
 }
 
-func (i *II) Start(session ChatSession, executable string) error {
+func (i *II) Start(session common.ChatSession, executable string) error {
 	if executable == "" {
 		executable = "ii"
 	}
@@ -97,7 +101,7 @@ func FIFOReader(path string) bool {
 	}
 	// BSD lsof does not select named pipes by pathname, so ask for open names
 	// and match the canonical FIFO path ourselves.
-	out, err := exec.Command(lsofExecutable(), "-n", "-P", "-F", "n").Output()
+	out, err := runShort(lsofExecutable(), "-n", "-P", "-F", "n")
 	return err == nil && lsofHasPath(out, path)
 }
 

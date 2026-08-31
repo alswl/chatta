@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package chat
+package managers
 
 import (
 	"fmt"
@@ -9,16 +9,19 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/alswl/chatta/pkg/common"
+	"github.com/alswl/chatta/pkg/dal"
 )
 
 var timeReply = regexp.MustCompile(`^\d+ (?:\S+ (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) |:\S+ 391 \S+ \S+ :(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) )`)
 
-func (m *Manager) Health(deep bool) HealthReport {
+func (m *Manager) Health(deep bool) common.HealthReport {
 	st := m.State
-	if loaded, err := LoadState(m.StatePath); err == nil {
+	if loaded, err := dal.LoadState(m.StatePath); err == nil {
 		st = loaded
 	}
-	r := HealthReport{Owner: ProcessAlive(st.Owner), Supervisor: IsVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint)}
+	r := common.HealthReport{Owner: dal.ProcessAlive(st.Owner), Supervisor: dal.IsVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint)}
 	if st.Host == "" {
 		r.Failure = "no session"
 		return r
@@ -33,14 +36,14 @@ func (m *Manager) Health(deep bool) HealthReport {
 	}
 	server := filepath.Join(m.Paths.Conversations, st.Host)
 	for _, channel := range st.Channels {
-		if !FIFOReader(filepath.Join(server, channel.Name, "in")) {
+		if !dal.FIFOReader(filepath.Join(server, channel.Name, "in")) {
 			r.Failure = "channel not joined: " + channel.Name
 			return r
 		}
 	}
 	r.JoinedChannels = true
 	if len(st.Channels) > 0 {
-		r.ClientReader = FIFOReader(filepath.Join(server, st.Channels[0].Name, "in"))
+		r.ClientReader = dal.FIFOReader(filepath.Join(server, st.Channels[0].Name, "in"))
 	}
 	if !r.ClientReader {
 		r.Failure = "ii is not reading a channel FIFO"
@@ -52,13 +55,13 @@ func (m *Manager) Health(deep bool) HealthReport {
 	}
 	out := filepath.Join(server, "out")
 	before := fileSize(out)
-	if err := WriteFIFO(filepath.Join(server, "in"), "/TIME", 1); err != nil {
+	if err := dal.WriteFIFO(filepath.Join(server, "in"), "/TIME", 1); err != nil {
 		r.Failure = "server input unavailable: " + err.Error()
 		return r
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		lines, _, _ := Tail(out, before)
+		lines, _, _ := dal.Tail(out, before)
 		for _, line := range lines {
 			if timeReply.MatchString(line) {
 				r.ServerLink = true
@@ -81,18 +84,18 @@ func (m *Manager) Health(deep bool) HealthReport {
 	return r
 }
 
-func (m *Manager) confirmMembership(st ChatSession, target string) bool {
+func (m *Manager) confirmMembership(st common.ChatSession, target string) bool {
 	server := filepath.Join(m.Paths.Conversations, st.Host)
 	out := filepath.Join(server, "out")
 	offset := fileSize(out)
-	if err := WriteFIFO(filepath.Join(server, "in"), "/NAMES "+target, 1); err != nil {
+	if err := dal.WriteFIFO(filepath.Join(server, "in"), "/NAMES "+target, 1); err != nil {
 		return false
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		lines, _, _ := Tail(out, offset)
+		lines, _, _ := dal.Tail(out, offset)
 		for _, line := range lines {
-			channel, names, ok := ParseNames(line)
+			channel, names, ok := dal.ParseNames(line)
 			if !ok || channel != target {
 				continue
 			}
@@ -115,21 +118,21 @@ func fileSize(path string) int64 {
 	return info.Size()
 }
 
-func (m *Manager) Ensure() (ChatSession, error) {
-	st, err := LoadState(m.StatePath)
+func (m *Manager) Ensure() (common.ChatSession, error) {
+	st, err := dal.LoadState(m.StatePath)
 	if err != nil {
-		return ChatSession{}, fmt.Errorf("no session — run: chatta chat start <nick> [role]")
+		return common.ChatSession{}, fmt.Errorf("no session — run: chatta chat start <nick> [role]")
 	}
-	if !ProcessAlive(st.Owner) {
+	if !dal.ProcessAlive(st.Owner) {
 		return st, fmt.Errorf("the agent session that owns this client has exited")
 	}
 	m.State = st
-	m.Paths = ResolvePaths(m.Home)
-	if !IsVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint) || !m.Health(false).ClientReader {
+	m.Paths = dal.ResolvePaths(m.Home)
+	if !dal.IsVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint) || !m.Health(false).ClientReader {
 		if st.SupervisorPID > 0 {
-			_ = StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint)
+			_ = dal.StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint)
 		}
-		if err := ReapStrayII(m.Paths.Conversations); err != nil {
+		if err := dal.ReapStrayII(m.Paths.Conversations); err != nil {
 			return st, fmt.Errorf("reap stale ii client: %w", err)
 		}
 		pid, err := m.spawnSupervisor()
@@ -137,11 +140,11 @@ func (m *Manager) Ensure() (ChatSession, error) {
 			return st, err
 		}
 		st.SupervisorPID = pid
-		st.SupervisorStartFingerprint = ProcessStart(pid)
+		st.SupervisorStartFingerprint = dal.ProcessStart(pid)
 		if st.SupervisorStartFingerprint == "" {
 			return st, fmt.Errorf("could not establish supervisor process identity")
 		}
-		if err := SaveState(m.StatePath, st); err != nil {
+		if err := dal.SaveState(m.StatePath, st); err != nil {
 			return st, err
 		}
 		m.State = st
@@ -157,58 +160,11 @@ func (m *Manager) Ensure() (ChatSession, error) {
 	return st, fmt.Errorf("chat client recovery timed out")
 }
 
-func (m *Manager) confirmRememberedMembership(st ChatSession) bool {
+func (m *Manager) confirmRememberedMembership(st common.ChatSession) bool {
 	for _, channel := range st.Channels {
 		if !m.confirmMembership(st, channel.Name) {
 			return false
 		}
 	}
 	return true
-}
-
-func (m *Manager) Join(channel string) error {
-	st, err := m.Ensure()
-	if err != nil {
-		return err
-	}
-	target := NormalizeChannel(channel)
-	for _, c := range st.Channels {
-		if c.Name == target {
-			return nil
-		}
-	}
-	if err := WriteFIFO(filepath.Join(m.Paths.Conversations, st.Host, "in"), "/j "+target, 1); err != nil {
-		return err
-	}
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if m.confirmMembership(st, target) {
-			st.Channels = append(st.Channels, ChannelMembership{Name: target, Kind: "custom", JoinedAt: time.Now(), Confirmed: true})
-			return SaveState(m.StatePath, st)
-		}
-		time.Sleep(250 * time.Millisecond)
-	}
-	return fmt.Errorf("the server did not confirm membership in %s", target)
-}
-
-func (m *Manager) Part(channel, reason string) error {
-	st, err := m.Ensure()
-	if err != nil {
-		return err
-	}
-	if err := CanPart(channel, st.HomeChannel.Name); err != nil {
-		return err
-	}
-	target := NormalizeChannel(channel)
-	kept := st.Channels[:0]
-	for _, c := range st.Channels {
-		if c.Name != target {
-			kept = append(kept, c)
-		}
-	}
-	if err := WriteFIFO(filepath.Join(m.Paths.Conversations, st.Host, target, "in"), "/l "+strings.TrimSpace(reason), 1); err != nil {
-		return err
-	}
-	st.Channels = kept
-	return SaveState(m.StatePath, st)
 }

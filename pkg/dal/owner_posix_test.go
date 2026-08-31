@@ -1,11 +1,13 @@
 //go:build darwin || linux
 
-package chat
+package dal
 
 import (
 	"os"
 	"strconv"
 	"testing"
+
+	"github.com/alswl/chatta/pkg/common"
 )
 
 func TestProcessStartAndAlive(t *testing.T) {
@@ -13,10 +15,10 @@ func TestProcessStartAndAlive(t *testing.T) {
 	if fingerprint == "" {
 		t.Fatal("ProcessStart returned an empty fingerprint")
 	}
-	if !ProcessAlive(OwnerBinding{PID: os.Getpid(), StartFingerprint: fingerprint}) {
+	if !ProcessAlive(common.OwnerBinding{PID: os.Getpid(), StartFingerprint: fingerprint}) {
 		t.Fatal("current process should be alive")
 	}
-	if ProcessAlive(OwnerBinding{PID: os.Getpid(), StartFingerprint: "different"}) {
+	if ProcessAlive(common.OwnerBinding{PID: os.Getpid(), StartFingerprint: "different"}) {
 		t.Fatal("mismatched fingerprint must not be alive")
 	}
 }

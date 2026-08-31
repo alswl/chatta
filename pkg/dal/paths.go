@@ -1,10 +1,14 @@
-package chat
+// Package dal is the data-access layer for chat: on-disk state, cursors, and
+// the OS-level primitives (FIFOs, processes) chat sessions are built from.
+package dal
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
 	"path/filepath"
+
+	"github.com/alswl/chatta/pkg/common"
 )
 
 type Paths struct {
@@ -39,18 +43,18 @@ func CursorPath(home, sessionID string) string {
 	sum := sha256.Sum256([]byte(sessionID))
 	return filepath.Join(home, "cursors-"+hex.EncodeToString(sum[:6])+".json")
 }
-func DiscoverConversations(home string) ([]Conversation, error) {
+func DiscoverConversations(home string) ([]common.Conversation, error) {
 	entries, err := os.ReadDir(filepath.Join(home, "irc"))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []Conversation{}, nil
+			return []common.Conversation{}, nil
 		}
 		return nil, err
 	}
-	out := make([]Conversation, 0)
+	out := make([]common.Conversation, 0)
 	for _, e := range entries {
 		if e.IsDir() {
-			out = append(out, Conversation{Name: e.Name(), SourceKind: sourceKind(e.Name()), TranscriptPath: filepath.Join(home, "irc", e.Name(), "out")})
+			out = append(out, common.Conversation{Name: e.Name(), SourceKind: sourceKind(e.Name()), TranscriptPath: filepath.Join(home, "irc", e.Name(), "out")})
 		}
 	}
 	return out, nil

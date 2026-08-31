@@ -13,8 +13,10 @@ import (
 	"testing"
 	"time"
 
-	chatpkg "github.com/alswl/chatta/pkg/chat"
+	"github.com/alswl/chatta/pkg/common"
 	"github.com/alswl/chatta/pkg/config"
+	"github.com/alswl/chatta/pkg/dal"
+	"github.com/alswl/chatta/pkg/managers"
 )
 
 func TestLocalDaemonLifecycleAndMessaging(t *testing.T) {
@@ -28,11 +30,11 @@ func TestLocalDaemonLifecycleAndMessaging(t *testing.T) {
 	server := startServer(t, port)
 	t.Cleanup(func() { stopCommand(server) })
 	binary := buildChatta(t)
-	owner := chatpkg.OwnerBinding{PID: os.Getpid(), StartFingerprint: chatpkg.ProcessStart(os.Getpid()), Runtime: "test"}
-	newManager := func(home, nick string) *chatpkg.Manager {
-		m := chatpkg.NewManager(config.ChatConfig{Home: home, Host: "127.0.0.1", Port: port, Channel: "#agents"})
+	owner := common.OwnerBinding{PID: os.Getpid(), StartFingerprint: dal.ProcessStart(os.Getpid()), Runtime: "test"}
+	newManager := func(home, nick string) *managers.Manager {
+		m := managers.NewManager(config.ChatConfig{Home: home, Host: "127.0.0.1", Port: port, Channel: "#agents"})
 		m.Executable = binary
-		m.OwnerLookup = func() (chatpkg.OwnerBinding, error) { return owner, nil }
+		m.OwnerLookup = func() (common.OwnerBinding, error) { return owner, nil }
 		if err := m.Start(nick, "smoke", false); err != nil {
 			t.Fatalf("start %s: %v", nick, err)
 		}
@@ -61,10 +63,10 @@ func TestLocalDaemonLifecycleAndMessaging(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = ownerProcess.Process.Kill(); _ = ownerProcess.Wait() })
-	deadOwner := chatpkg.OwnerBinding{PID: ownerProcess.Process.Pid, StartFingerprint: chatpkg.ProcessStart(ownerProcess.Process.Pid), Runtime: "test"}
-	third := chatpkg.NewManager(config.ChatConfig{Home: filepath.Join(t.TempDir(), "third"), Host: "127.0.0.1", Port: port, Channel: "#agents"})
+	deadOwner := common.OwnerBinding{PID: ownerProcess.Process.Pid, StartFingerprint: dal.ProcessStart(ownerProcess.Process.Pid), Runtime: "test"}
+	third := managers.NewManager(config.ChatConfig{Home: filepath.Join(t.TempDir(), "third"), Host: "127.0.0.1", Port: port, Channel: "#agents"})
 	third.Executable = binary
-	third.OwnerLookup = func() (chatpkg.OwnerBinding, error) { return deadOwner, nil }
+	third.OwnerLookup = func() (common.OwnerBinding, error) { return deadOwner, nil }
 	if err := third.Start("smoke3", "owner-death", false); err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +85,7 @@ func TestLocalDaemonLifecycleAndMessaging(t *testing.T) {
 	t.Fatal("owner death was not observed")
 }
 
-func waitForMessage(t *testing.T, m *chatpkg.Manager, want string) {
+func waitForMessage(t *testing.T, m *managers.Manager, want string) {
 	t.Helper()
 	deadline := time.Now().Add(8 * time.Second)
 	var seen []string

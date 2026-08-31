@@ -1,13 +1,18 @@
 //go:build darwin || linux
 
-package chat
+package managers
 
 import (
 	"os"
 	"testing"
 
+	"github.com/alswl/chatta/pkg/common"
 	"github.com/alswl/chatta/pkg/config"
 )
+
+func testSession() common.ChatSession {
+	return common.ChatSession{Nick: "agent-a", Host: "127.0.0.1", Port: 6667, HomeChannel: common.ChannelMembership{Name: "#lobby"}, Channels: []common.ChannelMembership{{Name: "#lobby"}}, Owner: common.OwnerBinding{PID: 1, StartFingerprint: "test"}}
+}
 
 func TestManagerUsesConfiguredChatHome(t *testing.T) {
 	m := NewManager(config.ChatConfig{Home: t.TempDir(), Host: "127.0.0.1", Port: 6667, Channel: "#agents"})

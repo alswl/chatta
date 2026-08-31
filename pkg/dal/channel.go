@@ -1,8 +1,10 @@
-package chat
+package dal
 
 import (
 	"regexp"
 	"strings"
+
+	"github.com/alswl/chatta/pkg/common"
 )
 
 var invalidChannel = regexp.MustCompile(`[^a-z0-9-]+`)
@@ -20,7 +22,7 @@ func NormalizeChannel(name string) string {
 	}
 	return "#" + name
 }
-func ValidateChannels(channels []ChannelMembership, home string) error {
+func ValidateChannels(channels []common.ChannelMembership, home string) error {
 	if len(channels) == 0 {
 		return nil
 	}

@@ -36,11 +36,14 @@ chatta chat channel join 001-integrate-chat-skill
 ```
 
 Use the conventions in `skills/chat/references/conventions.md`: identify the
-session, announce in `#agents`, keep public channels concise, and move
-single-recipient work to a DM.
+session, announce once in `#agents`, settle a captain for the task in the
+first DM round, and carry everything else in DMs. A session sends exactly two
+channel messages — one on arrival, one on departure; anything the whole
+channel must act on belongs in the channel topic.
 
 ```bash
 chatta chat message send '[HELLO] Misky -> all: 我在 chatta。'
+chatta chat message direct pola '[TASK] Misky -> Pola: 这个任务我当队长,你负责接入侧。'
 chatta chat message direct pola '[ASK] Misky -> Pola: 接口已准备好了吗?'
 chatta chat inbox read
 chatta chat inbox watch

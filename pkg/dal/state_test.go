@@ -1,18 +1,20 @@
-package chat
+package dal
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/alswl/chatta/pkg/common"
 )
 
-func testSession() ChatSession {
-	return ChatSession{Nick: "agent-a", Host: "127.0.0.1", Port: 6667, HomeChannel: ChannelMembership{Name: "#lobby"}, Channels: []ChannelMembership{{Name: "#lobby"}}, Owner: OwnerBinding{PID: 1, StartFingerprint: "test"}}
+func testSession() common.ChatSession {
+	return common.ChatSession{Nick: "agent-a", Host: "127.0.0.1", Port: 6667, HomeChannel: common.ChannelMembership{Name: "#lobby"}, Channels: []common.ChannelMembership{{Name: "#lobby"}}, Owner: common.OwnerBinding{PID: 1, StartFingerprint: "test"}}
 }
 
 func TestIncompleteStateRejected(t *testing.T) {
 	s := testSession()
-	s.Owner = OwnerBinding{}
+	s.Owner = common.OwnerBinding{}
 	if err := ValidateSession(s); err == nil {
 		t.Fatal("state without owner binding accepted")
 	}
@@ -23,7 +25,7 @@ func TestStateAtomicRoundTrip(t *testing.T) {
 		t.Fatal(e)
 	}
 	s, e := LoadState(p)
-	if e != nil || s.Nick != "agent-a" || s.SchemaVersion != StateSchemaVersion {
+	if e != nil || s.Nick != "agent-a" || s.SchemaVersion != common.StateSchemaVersion {
 		t.Fatalf("%+v %v", s, e)
 	}
 }
@@ -38,7 +40,7 @@ func TestMalformedStateRejected(t *testing.T) {
 }
 func TestCursorPersistence(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "cursors.json")
-	c := MessageCursor{InvokerKey: "session-a", Offsets: map[string]int64{"#lobby": 42}}
+	c := common.MessageCursor{InvokerKey: "session-a", Offsets: map[string]int64{"#lobby": 42}}
 	if e := SaveCursors(p, c); e != nil {
 		t.Fatal(e)
 	}

@@ -2,7 +2,7 @@
 name: chat
 version: 1.0.0
 description: |
-  Lets separate AI coding-agent sessions (Claude Code, Codex CLI, or any other agent that can run shell commands) talk to each other over IRC, using a local ngircd server as a shared message bus. Use this whenever the user wants two or more agent sessions — on the same machine, or different machines on a LAN — to coordinate on a shared task: splitting work, reporting status, asking each other questions, or announcing "done" so another agent can pick up next. Channels are for finding each other and for announcements — a lobby, one channel per project, one per piece of work in flight — while the work itself is carried on in IRC private messages between the two agents involved. In Claude Code, this pairs with the Monitor tool: the helper's `watch` command streams one line per incoming message, so Monitor can watch it directly and push a notification per message instead of manually polling — use this pattern whenever the user wants "live"/"push" coordination between Claude Code sessions rather than periodic checking. Also use this when the user asks how to set up "agent to agent" or "multi-agent" communication and specifically mentions IRC, ngircd, or wants a self-hosted/local alternative to Google's A2A (Agent2Agent) protocol — this skill includes a reference comparing the two so you can explain the tradeoffs (no AgentCard discovery, no task-state machine, no built-in auth — but real-time group channels and zero cloud dependency).
+  Lets separate AI coding-agent sessions (Claude Code, Codex CLI, or any other agent that can run shell commands) talk to each other over IRC, using a local ngircd server as a shared message bus. Use this whenever the user wants two or more agent sessions — on the same machine, or different machines on a LAN — to coordinate on a shared task: splitting work, reporting status, asking each other questions, or announcing "done" so another agent can pick up next. Channels are only for finding each other — a lobby, one channel per project, one per piece of work in flight — where each agent posts one line arriving and one leaving, while the work itself is carried on in IRC private messages between the agents involved, coordinated by a captain that the agents agree on up front. In Claude Code, this pairs with the Monitor tool: the helper's `watch` command streams one line per incoming message, so Monitor can watch it directly and push a notification per message instead of manually polling — use this pattern whenever the user wants "live"/"push" coordination between Claude Code sessions rather than periodic checking. Also use this when the user asks how to set up "agent to agent" or "multi-agent" communication and specifically mentions IRC, ngircd, or wants a self-hosted/local alternative to Google's A2A (Agent2Agent) protocol — this skill includes a reference comparing the two so you can explain the tradeoffs (no AgentCard discovery, no task-state machine, no built-in auth — but real-time group channels and zero cloud dependency).
   Do not use this for making one agent call an HTTP API, MCP server, or A2A-compliant service — this skill is specifically about the IRC-based approach.
 allowed-tools: Bash
 compatibility: 'Requires `ngircd`, `ii` (macOS: brew install ngircd ii), and the repository `chatta` binary on every machine running an agent. If either daemon/client binary is missing, ask the user to install it — do not install it for them.'
@@ -18,8 +18,8 @@ sessions splitting a large refactor — not for production or multi-tenant
 use.
 
 `references/conventions.md` is the agent half of this skill — identity,
-the four spaces (DM, project, spec, lobby), message format, handshake and
-reply policy. Read it before an agent says anything.
+the four spaces (DM, project, spec, lobby), message format, handshake, the
+captain role, and reply policy. Read it before an agent says anything.
 
 `references/ii-manual.md` is the client half of this skill: ii's directory
 layout, its commands, its file formats, and the measured behaviours the
@@ -143,9 +143,15 @@ The shape of it, so the rest of this file makes sense:
   `#<repo>` — a project's public door; `#<spec>` — one piece of work in
   flight; `#agents` — the lobby, for arriving and finding people. There is
   no per-agent channel; a nick already addresses one agent.
-- **Public channels stay quiet.** Arrive, find the right agent, announce
-  what every reader must act on — then move to a DM. Reply where you were
-  addressed.
+- **Two channel messages per agent, per channel: one arriving, one
+  leaving.** That is the entire broadcast budget — everything in between is
+  a DM. To reach someone, use `who` and `/WHOIS` to find them and DM them;
+  don't shout. Anything the whole channel must act on goes in the topic,
+  not in a message.
+- **A captain per task, settled fast.** In the first DM round after the
+  handshake, agree on the one agent finally responsible for the task — it
+  splits and assigns the work, decides disputes, and delivers the result to
+  the user. Non-captains report to the captain, not to each other.
 - **Anything with one named recipient gets a reply**; broadcasts don't
   oblige one.
 - **Message format**: `[TAG] <from> -> <to>: <text>`, with `[HELLO]`
@@ -231,8 +237,11 @@ silently going nowhere):
 
 ```bash
 chatta chat message send '[HELLO] Misky -> all: 我在 my-skills。'
-chatta chat message send -c feat-dm-support '[STATUS] Misky -> all: 脚本这边 DM 支持合进去了。'
+chatta chat message send '[STATUS] Misky -> all: 我这边收工了,先下了。'
 ```
+
+Those two — arriving and leaving — are the only channel messages a session
+should send. Work traffic goes to a DM; see `references/conventions.md`.
 
 **Send privately to one agent** — the default once the handshake is done:
 
@@ -548,8 +557,8 @@ chatta chat session status
 ## Further reading
 
 - `references/conventions.md` — identity, the four spaces, message format,
-  handshake, reply policy, trust. The agent-facing half of this skill;
-  read it before joining.
+  handshake, the captain role, reply policy, trust. The agent-facing half
+  of this skill; read it before joining.
 - `references/ii-manual.md` — ii as an agent drives it: directory layout,
   commands, file formats, and the measured behaviours the wrapper exists to
   handle (self-echo, blocking FIFOs, no auto-reconnect, join races).
