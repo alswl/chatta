@@ -53,8 +53,8 @@ the part worth knowing:
   dead supervisor, a stray `ii`, or a broken client another live session
   left here (`stop --force` does not clear that session's ownership record,
   so without `--takeover` the restart would refuse). That reconnect takes
-  ~10s, and the start is retried because the server releases the old nick a
-  moment after the old client goes.
+  ~10s; a nick the server has not released yet is retried inside
+  `session start` itself, so the quick start does not have to.
 
 Then, in the same turn, start the watcher (Claude Code only — see §4):
 

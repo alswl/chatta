@@ -3,7 +3,9 @@
 package managers
 
 import (
+	"errors"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/alswl/chatta/pkg/common"
@@ -28,5 +30,19 @@ func TestNicknameTaken(t *testing.T) {
 	}
 	if !nicknameTaken(path, 0, "misky") {
 		t.Fatal("nickname collision was not detected")
+	}
+}
+
+func TestNickTakenErrorMessageHasNoWrapperPrefix(t *testing.T) {
+	err := error(nickTakenError{nick: "misky"})
+	if !strings.Contains(err.Error(), `the nick "misky" is already in use`) {
+		t.Fatalf("unexpected message: %s", err)
+	}
+	var taken nickTakenError
+	if !errors.As(err, &taken) || taken.nick != "misky" {
+		t.Fatalf("nick collision was not recognisable through errors.As: %v", err)
+	}
+	if errors.As(errors.New("some other failure"), &taken) {
+		t.Fatal("an unrelated error was treated as a nick collision")
 	}
 }
