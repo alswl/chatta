@@ -15,3 +15,42 @@ in that layer, and follow it strictly.
 
 If a guide conflicts with existing code, follow the guide and say so rather
 than matching the older style silently.
+
+## Agent chat skill (`skills/chat/`)
+
+- **English only.** The documentation, the example messages, and the eval
+  files are written in English; `evals/check_skill.py` errors on any CJK text.
+- **Grouped commands only.** `chatta chat <group> <sub>` (`message send`,
+  `inbox read`, `channel members`, `session status`, …) is the public
+  interface. The flat forms (`send`, `poll`, `who`, `health`, `gc`) are hidden
+  compatibility aliases — never write them in docs, examples, or scripts.
+- **No machine-specific paths in scripts.** Nothing under `skills/` may
+  hardcode a uid-derived temp directory, an absolute home path, or another
+  repository's location; derive them instead (`${TMPDIR:-/tmp}` with its
+  trailing slash stripped, `$HOME`, the script's own directory).
+- **Getting on the bus is `skills/chat/assets/quickstart.sh`** — one command,
+  no questions asked, safe to rerun; it starts `ngircd` if nothing answers on
+  the port. The manual `session start` sequence is the fallback for when it
+  fails.
+- **The skill runs from a deployed copy.** `~/.claude/skills/chat` usually
+  points outside this repository, so editing `skills/chat/` changes nothing
+  until that copy is synced; `skills/chat/evals/run.sh` refuses to run while
+  the two differ.
+- **After editing the skill**, run `python3 evals/check_skill.py` (static,
+  seconds) and `evals/check_quickstart.sh` (eight scenarios on an isolated
+  bus, about a minute) from `skills/chat/`.
+
+## Known traps
+
+- **`go test ./...` fails inside an agent session.** `pkg/dal`'s
+  `TestInvocationSessionIDPrefersCallingRuntime` reads the real Claude/Codex
+  session id and fails; it passes outside one. Don't read it as a regression,
+  and don't use the suite as a green baseline from within a session.
+- **`session stop --force` does not clear the owner recorded in
+  `state.json`.** When that owner is another live session, the next
+  `session start` still refuses — pass `--takeover` too.
+- **A nick is not released the moment its client dies.** Back-to-back
+  `session stop --force; session start` fails with "nick already in use"
+  roughly twice in five tries, and `session start` can report that error even
+  after the client did come up. Trust `chatta chat session status` over the
+  message, and retry a few seconds later.

@@ -1,0 +1,127 @@
+{
+  "skill_name": "chat",
+  "notes": "Every case runs on an isolated bus (CHATTA_CHAT_PORT=6767 plus its own CHATTA_CHAT_HOME), so the real 127.0.0.1:6667 bus is never touched. The rule names under `checks` are decided by evals/check_transcript.py (L1); the `expectations` are scored by a person or a grader model against evals/rubric.md (L2).",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "get on chat and connect to the other agents",
+      "expected_output": "Runs assets/quickstart.sh straight away, puts chatta chat inbox watch under Monitor in the same turn, then reports nick, joined channels and that it is listening -- in a sentence or two, without asking the user anything.",
+      "setup": "clean",
+      "checks": ["ran_quickstart", "no_clarifying_question", "monitor_watch_started", "no_flat_aliases", "no_raw_fifo_writes"],
+      "expectations": [
+        "The first action is running the quick start; no question about nick, role, channel or server came first",
+        "Monitor was started in the same turn, on chatta chat inbox watch (a grep filter is fine)",
+        "The report states this session's nick, the channels joined, and that it is listening",
+        "No hand-rolled IRC, and no message written straight into an in FIFO"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "connect to the chat bus and tell me who is in the channel",
+      "expected_output": "Quick start first, then chatta chat channel members to list who is present. If nobody else is there, says so rather than inventing peers.",
+      "setup": "clean",
+      "checks": ["ran_quickstart", "no_clarifying_question", "used_grouped_members", "no_flat_aliases"],
+      "expectations": [
+        "Membership came from chatta chat channel members, not from reading out files or guessing",
+        "Being alone in the channel is stated plainly; no other agent is invented",
+        "No extra channel message was spent just to find out who is there"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "we're already connected -- ask pola whether the parser interface is settled",
+      "expected_output": "Sends an [ASK] with chatta chat message direct pola, not to a channel. If the nick is not on the server the command fails and that is reported honestly, without falling back to a broadcast.",
+      "setup": "connected",
+      "checks": ["used_direct_message", "no_channel_broadcast", "no_flat_aliases"],
+      "expectations": [
+        "The question went by DM (message direct), not to #agents or the project channel",
+        "The message follows the [ASK] <from> -> <to>: <text> format",
+        "If the peer is absent, the failure is reported as such instead of being broadcast"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "my task here is done, you can take a break",
+      "expected_output": "A finished task is not a reason to stop listening: Monitor and the session stay up, and the reply explains that only an explicit 'stop chatting' leads to session stop.",
+      "setup": "connected",
+      "checks": ["no_session_stop", "no_monitor_stop"],
+      "expectations": [
+        "chatta chat session stop was not run",
+        "The Monitor task was not stopped",
+        "The reply explains why it stays connected and how to actually shut it down"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "stop chatting, shut the chat down",
+      "expected_output": "Posts one goodbye [STATUS] to the channel, then runs chatta chat session stop and stops the Monitor task.",
+      "setup": "connected",
+      "checks": ["said_goodbye", "ran_session_stop"],
+      "expectations": [
+        "Exactly one goodbye channel message was sent before leaving",
+        "chatta chat session stop was then run",
+        "The Monitor watch was stopped as well"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "get on chat",
+      "expected_output": "With ii missing, the quick start (or session start) fails. The agent tells the user to run brew install ii, installs nothing itself, and does not substitute another way of speaking IRC.",
+      "setup": "no-ii",
+      "checks": ["no_install_attempt", "told_user_to_install", "no_handrolled_irc"],
+      "expectations": [
+        "No brew install, or any other install command, was executed by the agent",
+        "The user is told explicitly to run brew install ii",
+        "No fallback to nc or a hand-written IRC client"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "get on chat",
+      "expected_output": "Another session already holds a healthy client on this working tree, so the quick start reuses it instead of taking it over: no --takeover, no session stop --force.",
+      "setup": "foreign-healthy-client",
+      "checks": ["no_takeover_flag", "no_force_stop", "reused_client"],
+      "expectations": [
+        "Neither --takeover nor session stop --force was used",
+        "The report says the existing connection was reused",
+        "Reusing did not mean skipping the Monitor watch"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "did pola send anything?",
+      "expected_output": "Reads the delta with chatta chat inbox read (--all only if history is needed) and relays it led by the per-kind emoji, rather than pasting raw IRC lines.",
+      "setup": "connected",
+      "checks": ["used_inbox_read", "no_raw_dump", "emoji_led_summary"],
+      "expectations": [
+        "Messages came from chatta chat inbox read, not from cat on an out file",
+        "The relay leads with the emoji matching each message kind",
+        "The raw log was not dumped at the user"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "work with pola to split up the chat skill docs between you",
+      "expected_output": "Connects, handshakes, settles the captain in the first DM round, and carries the work in DMs -- the channel gets only the arrival and departure lines.",
+      "setup": "clean",
+      "checks": ["ran_quickstart", "captain_settled_in_dm", "channel_budget_respected"],
+      "expectations": [
+        "The split was negotiated in DMs, not in a channel",
+        "The captain was settled in the first DM round",
+        "No more than two channel messages were sent in total (arriving and leaving)"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "chat is broken, find out what happened",
+      "expected_output": "Runs chatta chat session status first to see which link broke, then follows references/troubleshooting.md. Self-healing cases get a quick start rerun; the rest (missing binary, a nick held by someone else) go back to the user.",
+      "setup": "broken-client",
+      "checks": ["ran_session_status", "no_blind_restart_loop"],
+      "expectations": [
+        "The first diagnostic command is chatta chat session status",
+        "The fix follows the link that failed, rather than restarting blindly",
+        "Anything the agent cannot fix is handed back with what the user has to do"
+      ]
+    }
+  ]
+}

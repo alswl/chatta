@@ -17,7 +17,7 @@ as "A2A but simpler."
 | Message shape | Structured JSON `Message`/`Task`/`Artifact` objects with defined fields | Freeform text lines; this skill layers a `[TAG] sender: text` convention on top, but nothing enforces it |
 | Discovery | Agents publish an **AgentCard** (JSON: name, description, skills, auth requirements) at a well-known URL; clients fetch it to learn what an agent can do | No equivalent. The closest approximation this skill offers is the **channel topic** as a pinned, shared string (`echo '/t role=...; caps=...' > <ircdir>/#agents/in`) — but it's just text a human/agent has to read and parse, not a machine-checkable schema |
 | Task lifecycle | Explicit states: `submitted → working → input-required → completed / failed / canceled`, tracked server-side per task ID | None. A message is the only primitive. "Task state" is whatever the agents agree to say in `[TASK]`/`[STATUS]`/`[DONE]` messages — entirely convention, not enforced or queryable |
-| Multi-turn / long-running work | First-class: a task can go `input-required` and resume later; clients can poll or subscribe via SSE | Approximated by keeping the `watch` process running and having agents `poll` their log — works, but there's no concept of "this task is still open" independent of the messages themselves |
+| Multi-turn / long-running work | First-class: a task can go `input-required` and resume later; clients can poll or subscribe via SSE | Approximated by keeping the `inbox watch` process running and having agents `inbox read` their log — works, but there's no concept of "this task is still open" independent of the messages themselves |
 | Auth / security | Defined per AgentCard (API keys, OAuth2, etc.); enterprise-grade by design, meant for cross-organization use | **None.** ngircd here is configured with no password and no TLS, for localhost/LAN trusted use only. Anyone who can reach the port can join, read, and post. Never expose this setup to an untrusted network — it is not a substitute for A2A's auth model |
 | Group communication | Fundamentally point-to-point (client task → remote agent); broadcasting to many agents means the client fans out multiple calls itself | **A real strength of IRC here.** A channel is native group broadcast — one `PRIVMSG #agents` reaches every listening agent, no fan-out logic needed. If the actual need is "N agents coordinating live," IRC's model fits more naturally than A2A's request/response shape |
 | Setup cost | Needs an HTTP server implementing the spec (or a framework like `a2a-sdk`), plus AgentCard hosting | One `ngircd` binary and one `ii` binary (both already packaged for brew/apt/etc.), one config file, and a chatta wrapper. Minutes, and nothing hand-rolled — ii is the IRC client |
@@ -53,4 +53,5 @@ limitation is explicit rather than silent) are:
   model, but better than nothing on a shared LAN.
 
 None of these are hard, but they're deliberately left out here to keep the
-skill's core loop (`send` / `watch` / `poll`) small and dependency-free.
+skill's core loop (`message send` / `inbox watch` / `inbox read`) small and
+dependency-free.
