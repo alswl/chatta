@@ -56,7 +56,7 @@ Channel `out` — messages and events, unix-epoch timestamps:
 
 ```
 1787806285 -!- misky(~misky@127.0.0.1) has joined #agents
-1787806310 <misky> [HELLO] Misky -> all: 我在 my-skills
+1787806310 <misky> [HELLO] Misky -> all: I am on my-skills
 1787806451 -!- pola(~pola@127.0.0.1) has left #agents
 ```
 
@@ -80,44 +80,45 @@ Each of these was measured, and each one is why some piece of
 - **ii echoes your own messages into the channel `out`.** They look
   identical to everyone else's (`<misky> ...`); only the nick tells them
   apart. An agent reading the raw file will read back what it just said and
-  answer itself. `poll` and `watch` filter the session's own nick.
+  answer itself. `inbox read` and `inbox watch` filter the session's own
+  nick.
 - **Writing to a FIFO with no reader blocks forever.** If ii died, a plain
   `echo > in` hangs the caller for the rest of its turn instead of failing.
   Open with `O_NONBLOCK` and treat `ENXIO` as "ii is gone" — that's the
-  cheapest liveness probe there is, and it's what `health` uses.
+  cheapest liveness probe there is, and it's what `session status` uses.
 - **ii exits when the connection drops** — it does not reconnect. It also
-  removes the channel directory on the way out, so a missing `#agents/in`
-  is itself a signal. Something has to restart it; here that's the
-  detached supervisor loop.
+  removes the channel directory on the way out, so a missing `#agents/in` is
+  itself a signal. Something has to restart it; here that's the detached
+  supervisor loop.
 - **Joining is not automatic.** `/j` must be re-sent after every restart,
   which is why the supervisor rejoins rather than just relaunching.
 - **The FIFO existing is not proof of membership.** ii accepts `/j` and
   creates the directory before the server has put you in the channel;
-  messages sent in that window are silently dropped. Confirm with a
-  `/NAMES` round-trip that your own nick is listed — `ensure()` does this
-  on every recovery path.
+  messages sent in that window are silently dropped. Confirm with a `/NAMES`
+  round-trip that your own nick is listed — `ensure()` does this on every
+  recovery path.
 - **ii answers server PINGs itself and never writes the PONG out**, so a
   PING can't be used as a round-trip probe. `/TIME` works: the reply shows
   up in the server `out` within a second.
 - **A private conversation is just another directory.** `<host>/<nick>/`
-  with the same `in`/`out` pair; writing to its `in` sends a PRIVMSG to
-  that nick, and ii creates the directory the moment a private message
-  passes in either direction. Measured on ii 2.0: **a bare `/j nick`
-  creates nothing** — the man page's "open private conversation" needs the
-  optional message, `/j nick hello`, before the directory appears. That is
-  why `dm` sends its first line through the server FIFO and the rest
+  with the same `in`/`out` pair; writing to its `in` sends a PRIVMSG to that
+  nick, and ii creates the directory the moment a private message passes in
+  either direction. Measured on ii 2.0: **a bare `/j nick` creates nothing**
+  — the man page's "open private conversation" needs the optional message,
+  `/j nick hello`, before the directory appears. That is why
+  `message direct` sends its first line through the server FIFO and the rest
   through the query. ii also does *not* recreate a conversation directory
   deleted underneath it; the client has to be restarted.
-- **DMs are invisible to a reader watching only the channel.** ii files
-  them under the peer's nick, so `poll`/`watch` walk every conversation
-  directory in the server dir, each with its own read cursor, and label the
-  private ones `(DM)`. Your own outgoing DM is echoed into the same file
-  under your own nick, exactly like the channel, so the same self-filter
-  applies.
+- **DMs are invisible to a reader watching only the channel.** ii files them
+  under the peer's nick, so `inbox read`/`inbox watch` walk every
+  conversation directory in the server dir, each with its own read cursor,
+  and label the private ones `(DM)`. Your own outgoing DM is echoed into the
+  same file under your own nick, exactly like the channel, so the same
+  self-filter applies.
 - **A DM to a nick nobody holds is dropped silently.** The server answers
   `<nick> No such nick or channel name` in the *server* `out`, but ii still
   creates the local directory, so the send looks identical to a delivered
-  one. `dm` reads that reply back and fails instead.
+  one. `message direct` reads that reply back and fails instead.
 - **A channel name becomes a directory name, verbatim.** IRC allows `/` in
   channel names and ngircd accepts `#feat/dm-support`, but ii does not
   create the nested path — the join succeeds on the server and the channel
@@ -127,11 +128,10 @@ Each of these was measured, and each one is why some piece of
   first: ii rejoins nothing on its own. The supervisor re-reads the joined
   list from state.json each time it relaunches ii, so a channel joined
   mid-session survives the next reconnect.
-- **Long messages need splitting.** An IRC line caps at 512 bytes
-  including the protocol prefix. The wrapper splits at 400 bytes on
-  character boundaries and sleeps 0.2s between pieces (ngircd disconnects
-  clients that flood). Verified: a 450-character message arrives complete
-  across 4 lines.
+- **Long messages need splitting.** An IRC line caps at 512 bytes including
+  the protocol prefix. The wrapper splits at 400 bytes on character
+  boundaries and sleeps 0.2s between pieces (ngircd disconnects clients that
+  flood). Verified: a 450-character message arrives complete across 4 lines.
 
 ## Debugging
 
@@ -146,6 +146,6 @@ cat ~/.irc-agent/clients/ii.log                   # supervisor + ii stderr
 pgrep -fl "ii -s"                         # is the client actually running?
 ```
 
-`chatta chat health` checks the same chain in order — supervisor process,
+`chatta chat session status` checks the same chain in order — supervisor process,
 channel FIFO, a reader on that FIFO, and a live round-trip to the server —
 and prints which link is broken.

@@ -2,7 +2,8 @@
 name: chat
 version: 1.0.0
 description: |
-  Lets separate AI coding-agent sessions (Claude Code, Codex CLI, or any other agent that can run shell commands) talk to each other over IRC, using a local ngircd server as a shared message bus. Use this whenever the user wants two or more agent sessions — on the same machine, or different machines on a LAN — to coordinate on a shared task: splitting work, reporting status, asking each other questions, or announcing "done" so another agent can pick up next. Channels are only for finding each other — a lobby, one channel per project, one per piece of work in flight — where each agent posts one line arriving and one leaving, while the work itself is carried on in IRC private messages between the agents involved, coordinated by a captain that the agents agree on up front. In Claude Code, this pairs with the Monitor tool: the helper's `watch` command streams one line per incoming message, so Monitor can watch it directly and push a notification per message instead of manually polling — use this pattern whenever the user wants "live"/"push" coordination between Claude Code sessions rather than periodic checking. Also use this when the user asks how to set up "agent to agent" or "multi-agent" communication and specifically mentions IRC, ngircd, or wants a self-hosted/local alternative to Google's A2A (Agent2Agent) protocol — this skill includes a reference comparing the two so you can explain the tradeoffs (no AgentCard discovery, no task-state machine, no built-in auth — but real-time group channels and zero cloud dependency).
+  Lets separate AI coding-agent sessions (Claude Code, Codex CLI, or any other agent that can run shell commands) talk to each other over IRC, using a local ngircd server as a shared message bus. Use this whenever the user wants two or more agent sessions — on the same machine, or different machines on a LAN — to coordinate on a shared task: splitting work, reporting status, asking each other questions, or announcing "done" so another agent can pick up next. Channels are only for finding each other — a lobby, one channel per project, one per piece of work in flight — where each agent posts one line arriving and one leaving, while the work itself is carried on in IRC private messages between the agents involved, coordinated by a captain that the agents agree on up front. In Claude Code, this pairs with the Monitor tool: the helper's `inbox watch` command streams one line per incoming message, so Monitor can watch it directly and push a notification per message instead of manually polling — use this pattern whenever the user wants "live"/"push" coordination between Claude Code sessions rather than periodic checking. Also use this when the user asks how to set up "agent to agent" or "multi-agent" communication and specifically mentions IRC, ngircd, or wants a self-hosted/local alternative to Google's A2A (Agent2Agent) protocol — this skill includes a reference comparing the two so you can explain the tradeoffs (no AgentCard discovery, no task-state machine, no built-in auth — but real-time group channels and zero cloud dependency).
+  Getting on the bus is one command with no setup questions — `assets/quickstart.sh` starts the server if needed, connects this session under a name derived from the repo, joins the lobby and the project channel, and is safe to rerun; use it whenever the user says to get on chat, connect, or start talking to the other agents.
   Do not use this for making one agent call an HTTP API, MCP server, or A2A-compliant service — this skill is specifically about the IRC-based approach.
 allowed-tools: Bash
 compatibility: 'Requires `ngircd`, `ii` (macOS: brew install ngircd ii), and the repository `chatta` binary on every machine running an agent. If either daemon/client binary is missing, ask the user to install it — do not install it for them.'
@@ -17,6 +18,70 @@ session and a Codex session working on the same repo, or two Claude Code
 sessions splitting a large refactor — not for production or multi-tenant
 use.
 
+## Quick start — run this first, ask nothing
+
+When the user asks to get on the chat bus, **run the quick start
+immediately and report the result**. It picks every default itself — nick,
+role, channels, server — so there is nothing to ask about:
+
+```bash
+<skill-dir>/assets/quickstart.sh   # in this repo: skills/chat/assets/quickstart.sh
+```
+
+```
+server   already up on 127.0.0.1:6667
+session  connected as chatta
+channel  joined #agents #chatta
+next     Monitor: chatta chat inbox watch
+```
+
+It starts `ngircd` if nothing answers on the port, connects this session,
+joins `#agents` and `#<repo>`, and posts the one `[HELLO]` line the lobby
+budget allows. Rerunning it is safe, and what it does on the second run is
+the part worth knowing:
+
+- **A healthy client on this path is reused untouched** — no restart, no
+  new nick, so a Monitor `inbox watch` already streaming from it keeps running.
+  This holds even when the healthy client was started by another session in
+  this same working tree — the quick start never cuts a working connection,
+  it speaks through it. A second session here that must appear as its own
+  agent needs its own `CHATTA_CHAT_HOME` and nick (see §3).
+- **A broken client on this path is cleared and replaced, without asking** —
+  `session stop --force`, then `session start --takeover`. Forcing is safe
+  precisely because the health check just failed: the only thing taken over
+  is a client that already stopped working — this session's own leftover, a
+  dead supervisor, a stray `ii`, or a broken client another live session
+  left here (`stop --force` does not clear that session's ownership record,
+  so without `--takeover` the restart would refuse). That reconnect takes
+  ~10s, and the start is retried because the server releases the old nick a
+  moment after the old client goes.
+
+Then, in the same turn, start the watcher (Claude Code only — see §4):
+
+```
+Monitor({ command: "chatta chat inbox watch", description: "chat messages", persistent: true })
+```
+
+**Defaults, not questions.** The nick is `<git-dir>/irc-agent-identity`'s
+`name=` if that file exists, else the repository directory name; the role
+is that file's `role=`, else one derived from the repo. Give the script a
+nicer name only when the user or `CLAUDE.md` names one, or when a nick
+collision forces it:
+
+```bash
+<skill-dir>/assets/quickstart.sh misky 'writes and refactors the skills in my-skills'
+```
+
+Only two things stop the quick start, and both need the user: `ngircd` or
+`ii` is not installed (`brew install ngircd ii` — tell them, don't install
+it yourself), or the nick is held on the server by a *different* agent —
+usually another working tree of this repo — in which case rerun it with a
+distinguishing name (`quickstart.sh chatta-dm`). Everything else it
+handles; it exits non-zero and prints the failure verbatim.
+
+The sections below are the manual version of the same thing — read them
+when the quick start fails, or when you need a command it doesn't cover.
+
 `references/conventions.md` is the agent half of this skill — identity,
 the four spaces (DM, project, spec, lobby), message format, handshake, the
 captain role, and reply policy. Read it before an agent says anything.
@@ -25,6 +90,10 @@ captain role, and reply policy. Read it before an agent says anything.
 layout, its commands, its file formats, and the measured behaviours the
 wrapper is built around. Read it when something looks wrong at the IRC
 level, before poking at the wrapper.
+
+`references/troubleshooting.md` is the failure half: what each broken link
+means and the one fix for it. Read it when the quick start didn't recover
+the client on its own.
 
 Read `references/a2a-comparison.md` before explaining this approach as an
 "alternative to A2A" — it lays out exactly what maps over and what doesn't,
@@ -43,42 +112,50 @@ write to, `out` is a file you read. Nothing in this skill speaks IRC.
 `chatta chat` is a wrapper that keeps ii running and reads and
 writes those files:
 
-- `start` — record this session's identity and launch ii. Once per session.
-- `health` — check the whole chain: supervisor alive → channel FIFO exists
-  → something is reading it → the server answers. Prints which link broke.
-- `send` — write a message to a channel (`-c` picks which one).
-- `dm` — write privately to one agent, no one else in the channel sees it.
-- `join` / `part` — enter or leave a project or spec channel. Joined
-  channels are remembered and rejoined after every reconnect.
-- `watch` — stream incoming messages as they arrive (for push
+- `session start` — record this session's identity and launch ii. Once per
+  session.
+- `session status` — check the whole chain: supervisor alive → channel FIFO
+  exists → something is reading it → the server answers. Names the broken
+  link and exits non-zero.
+- `message send` — write a message to a channel (`-c` picks which one).
+- `message direct` — write privately to one agent, no one else in the
+  channel sees it.
+- `channel join` / `channel leave` — enter or leave a project or spec
+  channel. Joined channels are remembered and rejoined after every
+  reconnect.
+- `inbox watch` — stream incoming messages as they arrive (for push
   notifications).
-- `poll` — print what arrived since the last poll. A file read, no network.
-- `who`, `stop`.
+- `inbox read` — print what arrived since the last read. A file read, no
+  network.
+- `channel members`, `session stop`.
 
 Two things are worth knowing about the design, because they're what make it
 survive real use:
 
 **Every command self-heals.** ii exits when the connection drops and does
-not come back on its own, so `send`/`poll`/`watch`/`who` all run the health
-check first and restart the client if it's gone — including re-joining and
-confirming the server actually put us back in the channel before sending
-anything. An agent never has to notice that its client died.
+not come back on its own, so
+`message send`/`inbox read`/`inbox watch`/`channel members` all run the
+health check first and restart the client if it's gone — including
+re-joining and confirming the server actually put us back in the channel
+before sending anything. An agent never has to notice that its client died.
 
-**The owner is its heartbeat.** `start` records the live Claude/Codex process
-that invoked it before detaching the supervisor. The supervisor checks that
-PID and its start time once a second; if either disappears or changes, it
-terminates ii and exits. A command run outside an agent session therefore
-refuses to start an unowned client. `stop` and `gc` also locate any ii still
-attached to a client directory and terminate its process group, so an old or
-partial `state.json` cannot make a leaked ii look stopped.
+**The owner is its heartbeat.** `session start` records the live
+Claude/Codex process that invoked it before detaching the supervisor. The
+supervisor checks that PID and its start time once a second; if either
+disappears or changes, it terminates ii and exits. A command run outside an
+agent session therefore refuses to start an unowned client. `session stop`
+and `client gc` also locate any ii still attached to a client directory and
+terminate its process group, so an old or partial `state.json` cannot make a
+leaked ii look stopped.
 
 **One supervisor per client directory, and ii never outlives it.** The
-supervisor holds an exclusive lock on its client directory, so a second one —
-two sessions in the same repo, a self-heal racing a `start` — exits instead of
-starting a competing client. And because the directory is what carries the
-nick, the supervisor takes its ii down whenever it goes: signalled, terminated
-by another command, or replaced. An ii that outlived its supervisor would keep
-holding the nick, and the replacement client would be rejected as a duplicate.
+supervisor holds an exclusive lock on its client directory, so a second one
+— two sessions in the same repo, a self-heal racing a `session start` —
+exits instead of starting a competing client. And because the directory is
+what carries the nick, the supervisor takes its ii down whenever it goes:
+signalled, terminated by another command, or replaced. An ii that outlived
+its supervisor would keep holding the nick, and the replacement client would
+be rejected as a duplicate.
 
 **Nothing needs a terminal.** ii has no UI, so the supervisor is just a
 detached process (`start_new_session`), not a tmux or screen session.
@@ -89,7 +166,7 @@ call is still running several tool calls later.
 cursors — is keyed by the working tree's path, so a repository and each of
 its worktrees are separate agents with separate identities. Two sessions
 opened on the *same* path would share one nick and one ii, so the second
-`start` refuses instead of taking the first one over: it prints who is
+`session start` refuses instead of taking the first one over: it prints who is
 there and waits for the user to decide (`--takeover` to replace it, or
 `CHATTA_CHAT_HOME` for a deliberately separate client). Nicks are
 server-wide, so worktrees of one repo must not both derive the same name
@@ -100,7 +177,8 @@ rather than installing it yourself or hand-rolling an IRC client.
 
 ## 1. Start the server
 
-If nothing is already listening on the agreed port, start one instance —
+The quick start above already does this; what follows is the same thing by
+hand. If nothing is already listening on the agreed port, start one instance —
 whichever agent/session starts first should do it, or the user starts it
 once by hand:
 
@@ -145,9 +223,9 @@ The shape of it, so the rest of this file makes sense:
   no per-agent channel; a nick already addresses one agent.
 - **Two channel messages per agent, per channel: one arriving, one
   leaving.** That is the entire broadcast budget — everything in between is
-  a DM. To reach someone, use `who` and `/WHOIS` to find them and DM them;
-  don't shout. Anything the whole channel must act on goes in the topic,
-  not in a message.
+  a DM. To reach someone, use `channel members` and `/WHOIS` to find them
+  and DM them; don't shout. Anything the whole channel must act on goes in
+  the topic, not in a message.
 - **A captain per task, settled fast.** In the first DM round after the
   handshake, agree on the one agent finally responsible for the task — it
   splits and assigns the work, decides disputes, and delivers the result to
@@ -171,23 +249,30 @@ aliases, but examples in this skill use the grouped interface.
 **Start the session** (once, before anything else):
 
 ```bash
-chatta chat session start misky '负责 my-skills 的 skill 编写与重构'
+chatta chat session start misky 'writes and refactors the skills in my-skills'
 ```
 
 Two ways this refuses, both of which need the user, not a retry:
 
 - *another agent is already on this path* — a live client here belongs to a
-  different session. **Ask the user** whether that agent is finished. If it
-  is, `start ... --takeover`; if both should run, give this one its own
-  client (`CHATTA_CHAT_HOME=~/.irc-agent/clients/<name>`) and its own nick.
-  `session status` prints the current owner. The same guard is on `session stop`
-  (`--force`), so one session can't quietly cut another's connection.
-- *the nick is taken* — someone else on the server holds it, usually
-  another working tree of the same repo deriving the same name. Add the
-  branch (`misky-dm`) and start again.
+  different session. A client left behind by *this* session (its owner is
+  gone, or it is this same agent restarting with a Monitor `inbox watch`
+  still attached) is not that case: `session start` replaces it silently,
+  and the quick start clears a failed one with `session stop --force` plus
+  `--takeover` so it never blocks a reconnect — including one a different
+  live session left broken here, since nothing that works is being taken
+  away. Only a *different* live agent whose client is **healthy** needs the
+  user: **ask** whether that agent is finished before
+  `start ... --takeover`; if both should run, give this one its own client
+  (`CHATTA_CHAT_HOME=~/.irc-agent/clients/<name>`) and its own nick. The
+  same guard is on `session stop` (`--force`), so one session can't quietly
+  cut another's connection.
+- *the nick is taken* — someone else on the server holds it, usually another
+  working tree of the same repo deriving the same name. Add the branch
+  (`misky-dm`) and start again.
 - *could not find the Claude/Codex session* — this was launched outside an
-  agent session, so it has no lifecycle owner. Run it from the agent session;
-  do not use a hand-run ii as a persistent client.
+  agent session, so it has no lifecycle owner. Run it from the agent
+  session; do not use a hand-run ii as a persistent client.
 
 The role string becomes ii's realname, so `/WHOIS misky` from any other
 client shows what this agent is for. Client state lives in
@@ -204,13 +289,12 @@ chatta chat session status
 ```
 
 ```
-      owner              misky (session 6b1f…)
-ok    supervisor         pid 46111
-ok    joined #agents     ~/.irc-agent/clients/irc/127.0.0.1/#agents/in
-ok    joined #my-skills  ~/.irc-agent/clients/irc/127.0.0.1/#my-skills/in
-ok    ii running         in FIFO has a reader
-ok    server reachable   1787806441 agentchat.local Thursday August 27 2026
+owner=true supervisor=true channels=true reader=true server=true membership=true
 ```
+
+A failing link is named on stderr (`health: no session`) and the exit
+status is non-zero, so `session status` doubles as the "am I connected?"
+test in a script.
 
 The chain, checked in order, so a failure says *which* link broke: the
 supervising process, one row per channel this session belongs to (the
@@ -236,8 +320,8 @@ you have joined (sending to one you haven't joined fails rather than
 silently going nowhere):
 
 ```bash
-chatta chat message send '[HELLO] Misky -> all: 我在 my-skills。'
-chatta chat message send '[STATUS] Misky -> all: 我这边收工了,先下了。'
+chatta chat message send '[HELLO] Misky -> all: I am on my-skills.'
+chatta chat message send '[STATUS] Misky -> all: Wrapping up here, signing off.'
 ```
 
 Those two — arriving and leaving — are the only channel messages a session
@@ -246,18 +330,18 @@ should send. Work traffic goes to a DM; see `references/conventions.md`.
 **Send privately to one agent** — the default once the handshake is done:
 
 ```bash
-chatta chat message direct pola '[STATUS] Misky -> Pola: parser 模块改完了,现在开始写测试。'
+chatta chat message direct pola '[STATUS] Misky -> Pola: the parser module is done; starting on its tests now.'
 ```
 
-Same wire format, one recipient. The nick is the one `who` lists (lowercase,
-no `@`); if it isn't on the server the command says so and exits non-zero
-rather than dropping the message silently.
+Same wire format, one recipient. The nick is the one `channel members` lists
+(lowercase, no `@`); if it isn't on the server the command says so and exits
+non-zero rather than dropping the message silently.
 
 Multi-line input is sent one IRC line per line, and anything over 400 bytes
 is split (an IRC line caps at 512 including the protocol prefix), with a
 pause between pieces so ngircd doesn't treat it as flooding. Quotes, `;`,
 backticks and `$VAR` in message text all pass through unchanged. Both
-`send` and `dm` work this way.
+`message send` and `message direct` work this way.
 
 **See who is in a channel** (the lobby by default):
 
@@ -282,8 +366,9 @@ chatta chat inbox read --all  # everything since the client started
 ```
 
 ```
-2026-08-27 12:51:51 (#agents) -!- pola(~pola@127.0.0.1) has joined #agents
-2026-08-27 12:54:17 (DM) <pola> [ASK] Pola -> Misky: parser 那边的接口定下来了吗?
+2026-08-27 12:51:51 #agents-!- pola(~pola@127.0.0.1) has joined #agents
+2026-08-27 12:53:02 (#agents) <pola> [HELLO] Pola -> all: I am on photo-cull (#photo-cull).
+2026-08-27 12:54:17 (DM) <pola> [ASK] Pola -> Misky: is the parser interface settled?
 ```
 
 Both commands read every joined channel and every private conversation, so
@@ -301,7 +386,7 @@ deliberately doesn't wrap all of IRC. The channel topic (see
 
 ```bash
 IRC=~/.irc-agent/clients/irc/127.0.0.1
-echo '/t Misky=my-skills 重构 chat skill; Pola=photo-cull 选片' > "$IRC/#agents/in"
+echo '/t Misky=my-skills chat skill refactor; Pola=photo-cull culling' > "$IRC/#agents/in"
 echo '/WHOIS pola' > "$IRC/in" && tail -5 "$IRC/out"
 ```
 
@@ -337,24 +422,24 @@ That one line decides which shapes of collaboration hold up:
   other side is being pushed to. A polling agent sees your question at its
   own next checkpoint, which is set by its work, not by your waiting.
 
-**When you relay channel activity to the user, lead with one emoji by
-kind** — the raw `poll`/`watch` lines are for you to parse, and the user
-shouldn't have to. A summary led by the right emoji tells them what
-happened at a glance: 📨 a new message arrived · ❓ someone is waiting on
-an answer (`[ASK]`) · 📋 work was assigned to you (`[TASK]`) · 🔧 a peer's
+**When you relay channel activity to the user, lead with one emoji by kind**
+— the raw `inbox read`/`inbox watch` lines are for you to parse, and the
+user shouldn't have to. A summary led by the right emoji tells them what
+happened at a glance: 📨 a new message arrived · ❓ someone is waiting on an
+answer (`[ASK]`) · 📋 work was assigned to you (`[TASK]`) · 🔧 a peer's
 progress update (`[STATUS]`) · ✅ something finished (`[DONE]`) · ⚠️ a
-blocker or dropped connection (`[ERROR]`, a `health` FAIL) · 👋 someone
-joined or left. One emoji, then the fact and who said it — the IRC lines
-themselves stay unchanged.
+blocker or dropped connection (`[ERROR]`, a `session status` FAIL) · 👋
+someone joined or left. One emoji, then the fact and who said it — the IRC
+lines themselves stay unchanged.
 
-### If you are Claude Code: keep `watch` running under Monitor, always
+### If you are Claude Code: keep `inbox watch` running under Monitor, always
 
 Claude Code's Monitor tool starts a background command and turns each line
 that command prints to stdout into a push notification — you get told
-about it, you don't have to go check. `watch` streams exactly that: one
+about it, you don't have to go check. `inbox watch` streams exactly that: one
 line per incoming message, your own messages already filtered out.
 
-**Start it in the same turn as `start`, and treat it as required for the
+**Start it in the same turn as `session start`, and treat it as required for the
 rest of the session** — a session in the channel that isn't being watched
 is worse than one that never joined: the others can see you present and
 address you, and you answer nothing.
@@ -369,33 +454,35 @@ Monitor({
 
 `persistent: true` because this is a session-length watch, not a
 wait-for-one-thing check. **Stop it only when the user says to** — "chat
-off", "别聊了", "关掉聊天" — and only then `chatta chat session stop`. A quiet
+off", "stop chatting", or the same intent in whatever language the user
+speaks — and only then `chatta chat session stop`. A quiet
 channel is not a finished collaboration: nothing else, including your own
 task finishing, is a reason to stop listening while the user still has the
 bus open.
 
 **Two things can silence it, and each has one fix:**
 
-- *The client under it dies* (connection dropped, ngircd restarted). `watch`
-  handles this itself: every 30s it re-checks the chain and restarts ii,
-  the same self-heal `send`/`poll` do. Messages sent while it was down are
-  gone — IRC has no replay — but the stream resumes on its own.
-- *The Monitor task itself exits* — the host reaped it (background tasks
-  can be terminated from outside; `watch` loops forever and never exits on
+- *The client under it dies* (connection dropped, ngircd restarted).
+  `inbox watch` handles this itself: every 30s it re-checks the chain and
+  restarts ii, the same self-heal `message send`/`inbox read` do. Messages
+  sent while it was down are gone — IRC has no replay — but the stream
+  resumes on its own.
+- *The Monitor task itself exits* — the host reaped it (background tasks can
+  be terminated from outside; `inbox watch` loops forever and never exits on
   its own), ii couldn't be brought back, or it was stopped by hand. Then
-  nothing is watching and nothing will tell you so. **Restart it and `poll`
-  for the gap** — an exit is never itself a signal that the collaboration
-  is over.
-  Whenever a Monitor exit is reported, or you're about to rely on having
-  heard from someone (before `[ASK]`-ing, before assuming silence means
-  nobody replied, after any `stop`/`start` cycle), confirm the task is
-  still listed as running — restart Monitor if it isn't, then
-  `poll` once to pick up whatever arrived in the gap.
+  nothing is watching and nothing will tell you so. **Restart it and
+  `inbox read` for the gap** — an exit is never itself a signal that the
+  collaboration is over. Whenever a Monitor exit is reported, or you're
+  about to rely on having heard from someone (before `[ASK]`-ing, before
+  assuming silence means nobody replied, after any
+  `session stop`/`session start` cycle), confirm the task is still listed as
+  running — restart Monitor if it isn't, then `inbox read` once to pick up
+  whatever arrived in the gap.
 
-With Monitor up, don't also `poll` in a loop; you'll be notified as
+With Monitor up, don't also `inbox read` in a loop; you'll be notified as
 messages arrive, so react to them and keep doing your own work in between.
 The log keeps accumulating in parallel, so history is still re-readable
-(`poll --all`).
+(`inbox read --all`).
 
 If the channel is expected to be very chatty (many agents, high-frequency
 status spam), narrow what reaches you rather than piping everything
@@ -411,20 +498,20 @@ with the discipline above the channels are the part worth filtering.
 
 ### If you are Codex CLI, or any agent without an equivalent push tool
 
-Call `poll` at natural checkpoints. Nothing needs backgrounding on your
-side: `start` already detached the client into its own session, and if it
-died since, `poll` restarts it before reading.
+Call `inbox read` at natural checkpoints. Nothing needs backgrounding on your
+side: `session start` already detached the client into its own session, and if it
+died since, `inbox read` restarts it before reading.
 
 ```bash
 chatta chat inbox read
 ```
 
-Don't poll in a tight loop — an agent turn spent checking for messages
-that usually aren't there is wasted. Poll once at the start of a work
-step, act on anything new, then don't poll again until the next natural
-checkpoint (finishing a sub-task, before a change another agent might be
-affected by). If genuinely blocked waiting on a reply, a shell loop with a
-real sleep between `poll` calls (every 10-30s) is fine — `poll` is just a
+Don't poll in a tight loop — an agent turn spent checking for messages that
+usually aren't there is wasted. Poll once at the start of a work step, act
+on anything new, then don't poll again until the next natural checkpoint
+(finishing a sub-task, before a change another agent might be affected by).
+If genuinely blocked waiting on a reply, a shell loop with a real sleep
+between `inbox read` calls (every 10-30s) is fine — `inbox read` is just a
 local file read — but prefer structuring the task so there's other useful
 work to do between checks instead of blocking.
 
@@ -440,119 +527,25 @@ can inject text into a running session from outside, but it enters as
 *user input* — piping a shared channel into it would dress every other
 agent's chatter as an instruction from your own user, on a bus with no
 authentication. Don't. The gap is worth a delay, not that.) If another
-runtime does expose a real subscription hook, point it at `watch` and
+runtime does expose a real subscription hook, point it at `inbox watch` and
 treat each line as an incoming-message event.
 
-**Codex refreshes are expensive turns.** When a Codex session uses
-`chat-refresh`, do not spend the turn on a reflexive "收到" or a sequence of
-small acknowledgements. Read all pending messages first, combine related
-messages into one response, and think through the repository state before
-sending anything. A useful response should pack in the relevant conclusion,
-the context and messages considered, concrete evidence (files, commands,
-tests, or observed state), decisions and trade-offs, risks or uncertainty,
-and explicit next steps with ownership or blockers. Answer every question
-that can be answered from the available evidence; group the questions that
-still need input at the end. Be information-dense and specific, but do not
-invent facts or pad the message with unrelated detail.
-
-For a `[TASK]`, say whether it is accepted, state the intended scope and
-deliverable, and report dependencies or an estimated checkpoint. For an
-`[ASK]`, give the answer first, then the reasoning and any caveat. A
-`[STATUS]` or `[DONE]` addressed to you by name gets a reply too: include
-the precise interface, file, result, or action you will take if it affects
-your work, and otherwise briefly confirm what you understood. Broadcasts
-don't oblige a reply — answer them only when you have something the sender
-needs. One well-considered message beats several low-information ones, but
-brevity is not a reason to leave a directed message unanswered.
+**A refresh is an expensive turn — spend it well.** Read everything
+pending first, then answer in one substantive message rather than a
+sequence of acknowledgements. `references/conventions.md` (Reply policy)
+says what a reply owes the sender, per tag.
 
 ## Troubleshooting
 
-**Run `health` first.** It checks the chain in order and names the broken
-link, which answers most of the questions below in a second:
+**Run `chatta chat session status` first.** It checks the chain in order —
+supervisor, channel FIFOs, a reader on them, a round-trip to the server —
+and names the link that broke, which answers most questions in a second.
+Rerunning `assets/quickstart.sh` then repairs the common ones on its own.
 
-```bash
-chatta chat session status
-```
-
-- **`ii is not installed`**: ask the user to install it
-  (`brew install ii`). Don't install it yourself, and don't substitute a
-  hand-rolled IRC client.
-- **`another agent is already on this path`**: a live client here belongs
-  to another session — one working tree gets one nick and one ii, so
-  starting would take theirs. Ask the user before `--takeover`; the
-  alternative is a separate `CHATTA_CHAT_HOME` and a different nick.
-- **`the nick ... is taken`**: two working trees of one repo derived the
-  same name. Nicks are server-wide; add the branch to yours.
-- **`joined #x` FAIL**: the client is up but that channel isn't — a
-  reconnect whose rejoin raced, or someone `part`ed it. Any command repairs
-  it by rejoining before falling back to restarting the client. If it stays
-  FAIL, the name is the suspect: `join` flattens `/` and spaces to `-`, so
-  a channel typed by hand into the FIFO as `#feat/dm-support` joins on the
-  server but has nowhere on disk to live.
-- **Two agents can't find each other in a project or spec channel**: they
-  derived different names for it. Compare `who` output on both sides and
-  agree on one — repo basename for a project, branch or spec id for the
-  work.
-- **`supervisor` FAIL**: the process that keeps ii alive is gone (session
-  restart, reboot, someone killed it). Any command restarts it; `start`
-  does so explicitly.
-- **`ii running` FAIL**: the client died and hasn't been restarted yet —
-  wait ~5s for the supervisor's next attempt, or run any command, which
-  won't return until the client is back. If it keeps dying, read
-  `~/.irc-agent/clients/ii.log`.
-- **`server reachable` FAIL**: ii is alive but the server isn't answering a
-  valid IRC `TIME` response. Check ngircd is up (`nc -z 127.0.0.1 6667`); if it
-  was restarted, the supervisor reconnects within a few seconds. `ii` strips
-  the numeric `391` from its normal `out` file, so a valid response appears as
-  `server Thursday ...`; a response such as `451 Connection not registered`
-  is an actual failure, not proof of reachability.
-  Check ngircd is up (`nc -z 127.0.0.1 6667`); if it was restarted, the
-  supervisor reconnects within a few seconds.
-- **A nick keeps dropping out of the channel, or `who` doesn't list you**:
-  more than one ii is attached to your client directory, each fighting for the
-  same nick — the server accepts the first and rejects the rest. Count them:
-
-  ```bash
-  pgrep -fl 'ii .*-i .*/\.irc-agent/clients/'
-  ```
-
-  More than one line per client directory means a stale ii survived its
-  supervisor (a `kill -9`, or a client from before this was fixed). Any
-  command's self-heal clears them out now; `start` does it explicitly.
-- **An agent is talking to itself**: something is reading
-  `irc/<host>/#agents/out` directly instead of through `poll`/`watch`,
-  which are what strip your own nick. ii writes your own messages into that
-  file in exactly the same format as everyone else's.
-- **A DM never arrived**: `dm` fails loudly for a nick the server doesn't
-  know, so the usual cause is the *wrong* nick — a live agent under a name
-  you misremembered gets the message and says nothing. Run `who` and check
-  the spelling. ii also never recreates a conversation directory that was
-  deleted underneath it; if `irc/<host>/<nick>/` was removed by hand,
-  restart the client (`stop` then `start`).
-- **A reply came back in the channel instead of the DM**: the other agent
-  isn't following the reply-where-addressed rule — say so, in a DM.
-- **Messages missing**: IRC has no history replay — anything sent while
-  your client was down is gone. `start` before the other agents begin
-  talking, and use `poll --all` to re-read what did arrive.
-- **Nobody answers**: run `who`. If you're alone in the channel, the other
-  agent never joined, and nothing you send is being heard.
-- **A message you sent never showed up elsewhere**: it was probably sent in
-  the gap between ii accepting `/j` and the server actually adding you to
-  the channel. The wrapper confirms membership before sending on every
-  recovery path — if you wrote to the FIFO by hand, you skipped that.
-- **The Monitor task exited with a non-zero code** (144, 143, …): it was
-  terminated from outside — `watch` has no exit path of its own. Restart it
-  and `poll` for the gap; don't read it as the collaboration ending, and
-  don't reverse-engineer the cause from the exit code (128+n naming is not
-  reliable across runtimes). If it keeps happening, have `watch` log the
-  signal it receives rather than guessing.
-- **No Monitor notifications arriving**: check the Monitor task is still
-  active — if it exited, restart it (that is the one failure `watch` can't
-  fix from inside) and `poll` for the gap. If it's alive, run `health`; a
-  dead client is restarted by `watch` itself within ~30s. If a grep filter
-  was added on top of `watch`, confirm it uses `--line-buffered` — an
-  unbuffered filter stage can sit on matched lines indefinitely instead of
-  emitting them.
+If that isn't enough, `references/troubleshooting.md` has the full list:
+missing `ii`, a client owned by another session, nick collisions, a channel
+that won't rejoin, a nick that keeps dropping, an agent talking to itself,
+a DM that never arrived, a silent Monitor task.
 
 ## Further reading
 
@@ -562,6 +555,9 @@ chatta chat session status
 - `references/ii-manual.md` — ii as an agent drives it: directory layout,
   commands, file formats, and the measured behaviours the wrapper exists to
   handle (self-echo, blocking FIFOs, no auto-reconnect, join races).
+- `references/troubleshooting.md` — every failure this client has, and the
+  one thing to try for each. Read it when `chatta chat session status` names
+  a broken link and rerunning the quick start didn't fix it.
 - `references/a2a-comparison.md` — how this maps onto Google's A2A
   protocol, and where it doesn't. Read this before positioning IRC as a
   substitute for A2A in any user-facing explanation.
@@ -569,5 +565,6 @@ chatta chat session status
 ## Contract validation
 
 All commands shown in this skill resolve to `chatta chat` subcommands defined
-in `contracts/chatta-chat-cli.md`; the relative references and mirrored
-`assets/ngircd-agent-chat.conf` path are present in this repository.
+in `contracts/chatta-chat-cli.md`; the relative references and the mirrored
+`assets/ngircd-agent-chat.conf` and `assets/quickstart.sh` paths are present
+in this repository.
