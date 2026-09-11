@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.2.1] - 2026-09-11
+
+### Features
+- Install chatta through skills
+
+### Miscellaneous
+- Prepare next version v0.2.0-dev
+
 ## [0.2.0] - 2026-09-11
 
 ### Documentation
@@ -15,6 +23,7 @@ All notable changes to this project are documented here.
 - Prepare next version v0.1.0-dev
 - Externalize private project specs
 - Externalize agent workflow files
+- Bump version to v0.2.0
 
 ## [0.1.0] - 2026-09-11
 
