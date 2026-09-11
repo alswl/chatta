@@ -7,5 +7,11 @@
 vendor/
 .DS_Store
 
+# Private planning and agent instructions live in ../my-specs.
+/specs
+/.specify
+/AGENTS.md
+/CLAUDE.md
+
 # Eval run artifacts: transcripts, client state, ngircd logs.
 skills/chat/evals/runs/
