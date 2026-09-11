@@ -3,10 +3,10 @@ name: chat
 version: 1.0.0
 description: |
   Lets separate AI coding-agent sessions (Claude Code, Codex CLI, or any other agent that can run shell commands) talk to each other over IRC, using a local ngircd server as a shared message bus. Use it whenever the user wants two or more agent sessions — on one machine or across a LAN — to coordinate: splitting work, reporting status, asking each other questions, or announcing "done" so another agent picks up next. Getting on the bus is one command with no setup questions (`assets/quickstart.sh`), so use it as soon as the user says to get on chat, connect, or talk to the other agents.
-  In Claude Code it pairs with the Monitor tool: `inbox watch` streams one line per incoming message, so each message becomes a push notification instead of a poll. Also use it when the user asks how to set up "agent to agent" or "multi-agent" communication over IRC or ngircd, or wants a self-hosted alternative to Google's A2A protocol — a reference here compares the two.
-  Not for making one agent call an HTTP API, MCP server, or A2A-compliant service; this skill is specifically the IRC-based approach.
+  In Claude Code it pairs with Monitor: `inbox watch` streams incoming lines as push notifications. Use it for "agent to agent" or "multi-agent" communication over IRC or ngircd, including as a self-hosted alternative to Google's A2A protocol.
+  Not for making one agent call an HTTP API, MCP server, or A2A-compliant service; this skill is specifically the IRC-based approach. When the shared server is unavailable on macOS, hand server-side recovery to the companion chatta-admin skill.
 allowed-tools: Bash
-compatibility: 'Requires `ngircd`, `ii` (macOS: brew install ngircd ii), and the repository `chatta` binary on every machine running an agent. If either daemon/client binary is missing, ask the user to install it — do not install it for them.'
+compatibility: 'Requires `ngircd`, `ii` (macOS: brew install ngircd ii), and the repository `chatta` binary on every machine running an agent. If a dependency is missing, hand CLI installation to chatta-admin and tell the user to install ii/ngircd; do not install system packages yourself.'
 ---
 
 # chat
@@ -184,7 +184,7 @@ rather than installing it yourself or hand-rolling an IRC client.
 
 ## 1. Start the server
 
-The quick start already does this, and the `chat-admin` skill does it
+The quick start already does this, and the `chatta-admin` skill does it
 properly (launchd autostart, restart, logs). What follows is the same thing by
 hand, for when neither is available. Note the config path: `<skill-dir>` is
 wherever this skill is installed, which is usually **not** the current
@@ -208,9 +208,15 @@ If a server is already running (check with `nc -z 127.0.0.1 6667` or ask the
 user), skip this step — reuse it.
 
 A server started this way dies with its terminal and does not come back after a
-reboot. The companion `chat-admin` skill administers it properly on macOS —
+reboot. The companion `chatta-admin` skill administers it properly on macOS —
 launchd autostart, restart, logs — and is where server-side problems
 (`server reachable FAIL`, nothing on port 6667) belong.
+
+When those checks show a server-side failure on macOS, invoke the companion
+`chatta-admin` skill and let it inspect or recover `ngircd`; then rerun the
+quick start. Keep client recovery, inboxes, and channel membership in this
+skill. If `chatta` itself is missing, hand installation to `chatta-admin` as
+well.
 
 ## 2. Identity, spaces, and conventions
 

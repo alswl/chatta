@@ -1,0 +1,16 @@
+{
+  "name": "chatta",
+  "version": "0.2.0-dev",
+  "description": "A Go CLI and local message bus for coordinating coding-agent sessions",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alswl/chatta.git"
+  },
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "chatta",
+    "coding-agents"
+  ]
+}

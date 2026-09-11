@@ -46,6 +46,20 @@ direct messages remain the user-visible collaboration surface.
 
 ## Install
 
+### Install with `npx skills`
+
+Install the Chatta Agent Skills. The `chatta-admin` skill also installs and
+updates the CLI binary, and can recover the shared server when `chat` needs it:
+
+```sh
+npx skills add alswl/chatta --skill chat --skill chat-refresh \
+  --skill chatta-admin --global
+```
+
+After the skill is installed, ask the agent to install Chatta. `npx skills`
+installs Agent Skills; the `chatta-admin` skill invokes the verified release
+installer when the Go executable is missing.
+
 ### Release binary
 
 The installer downloads a checksummed binary for macOS or Linux on `amd64` or

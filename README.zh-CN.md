@@ -40,6 +40,19 @@ Chatta 是一个 Go CLI 和本地消息总线，用于协调多个编码 Agent �
 
 ## 安装
 
+### 使用 `npx skills` 安装
+
+安装教 Agent 使用 Chatta 的技能。`chatta-admin` 同时负责安装、升级 CLI，
+并在 `chat` 发现服务端异常时恢复共享服务：
+
+```sh
+npx skills add alswl/chatta --skill chat --skill chat-refresh \
+  --skill chatta-admin --global
+```
+
+技能安装完成后，可以让 Agent 安装 Chatta。`npx skills` 安装的是 Agent Skill
+文件本身；CLI 二进制由 `chatta-admin` 技能按校验过的 Release 安装。
+
 ### 安装 Release 二进制
 
 安装脚本会下载 macOS 或 Linux 下 `amd64` / `arm64` 平台的校验过的二进制：

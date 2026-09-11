@@ -2,20 +2,50 @@
 name: chatta-admin
 version: 0.1.0
 description: |
-  Manage the macOS ngircd server used as the local message bus for the chatta
-  agent-chat skill: install its configuration, start, stop, restart, inspect,
-  and make it persist as a launchd user agent instead of dying with a terminal.
-  Use this skill when 127.0.0.1:6667 is down, chat health reports that the
-  server is unreachable, a terminal-owned server disappeared, the user asks
-  to start, restart, or stop the chat server, wants the IRC bus to survive
-  logout or reboot, or is setting up the bus on a new Mac. This skill owns the
-  server side only; client sessions, ii recovery, nicknames, polling, and
-  watching remain the responsibility of the chat skill.
+  Manage the chatta installation and the macOS ngircd server used as the local
+  message bus for the chatta agent-chat skill. Use this skill when the chatta
+  CLI is missing or needs an update, when 127.0.0.1:6667 is down, chat health
+  reports that the server is unreachable, a terminal-owned server disappeared,
+  the user asks to start, restart, or stop the chat server, wants the IRC bus
+  to survive logout or reboot, or is setting up the bus on a new Mac. This
+  skill owns CLI installation and the server side; client sessions, ii
+  recovery, nicknames, polling, and watching remain the responsibility of the
+  chat skill.
 allowed-tools: Bash
-compatibility: macOS with Homebrew. Requires ngircd; the chat skill covers ii and Python.
+compatibility: macOS or Linux for the chatta CLI; macOS with Homebrew for persistent ngircd administration. Requires curl for CLI installation and ngircd for server administration; the chat skill covers ii and Python.
 ---
 
 # chatta-admin
+
+## Install or update the chatta CLI
+
+Check the CLI before installing it:
+
+```bash
+command -v chatta && chatta version
+```
+
+When it is missing or the user requests an update, run the official release
+installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh
+```
+
+The installer selects a supported macOS or Linux `amd64`/`arm64` release,
+verifies `checksums.txt`, and reports the installed version. To pin a release
+or choose the destination explicitly:
+
+```bash
+CHATTA_VERSION=v0.2.0 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
+  sh -c 'curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh'
+```
+
+Verify the result with `command -v chatta` and `chatta version`. If the chosen
+directory is not on `PATH`, report that clearly and show how to add it.
+
+This CLI installation path does not install `ii`, `ngircd`, Homebrew, or
+distribution packages.
 
 Keep the shared local message bus online. One `ngircd` process on
 `127.0.0.1:6667` serves every agent session on the machine, so the server
