@@ -90,8 +90,8 @@
     {
       "id": 8,
       "prompt": "did pola send anything?",
-      "expected_output": "Reads the delta with chatta chat inbox read (--all only if history is needed) and relays it led by the per-kind emoji, rather than pasting raw IRC lines.",
-      "setup": "connected",
+      "expected_output": "Reads the delta with chatta chat inbox read (--all only if history is needed) and relays it led by the per-kind emoji, rather than pasting raw IRC lines. A peer [HELLO] and a [ASK] DM are waiting, so there is something to report.",
+      "setup": "peer-message",
       "checks": ["used_inbox_read", "no_raw_dump", "emoji_led_summary"],
       "expectations": [
         "Messages came from chatta chat inbox read, not from cat on an out file",

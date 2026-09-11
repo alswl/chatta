@@ -76,28 +76,52 @@ start_test_server() {
   return 1
 }
 
+# Every branch ends deterministically: a pkill with nothing to kill exits 1,
+# which would otherwise read as a failed setup.
 setup_case() {
   unset CHATTA_CHAT_II
   chatta chat session stop --force >/dev/null 2>&1
-  rm -rf "$CHATTA_CHAT_HOME"/*
+  rm -rf "$CHATTA_CHAT_HOME"
+  mkdir -p "$CHATTA_CHAT_HOME"
   case "$1" in
     clean)                  # no server either: quickstart has to start one
-      pkill -f "ngircd-$CHATTA_CHAT_PORT.conf" >/dev/null 2>&1 ;;
+      pkill -f "ngircd-$CHATTA_CHAT_PORT.conf" >/dev/null 2>&1 || true ;;
     connected)
-      start_test_server && assets/quickstart.sh >/dev/null ;;
+      start_test_server || return 1
+      assets/quickstart.sh >/dev/null || return 1 ;;
     broken-client)
-      start_test_server && assets/quickstart.sh >/dev/null && pkill -f _supervise >/dev/null 2>&1 ;;
+      start_test_server || return 1
+      assets/quickstart.sh >/dev/null || return 1
+      pkill -f _supervise >/dev/null 2>&1 || true ;;
     no-ii)
       export CHATTA_CHAT_II=/nonexistent/ii
-      start_test_server ;;
+      start_test_server || return 1 ;;
+    peer-message)           # connected, with a peer DM and channel line waiting
+      start_test_server || return 1
+      assets/quickstart.sh >/dev/null || return 1
+      mine=$(jq -r .nick "$CHATTA_CHAT_HOME/state.json")
+      peer_home=$PWD/$OUT/peer
+      mkdir -p "$peer_home"
+      sleep 900 & FAKE_OWNER=$!
+      CHATTA_CHAT_TEST_OWNER_PID=$FAKE_OWNER CHATTA_CHAT_HOME=$peer_home \
+        chatta chat session start pola 'photo-cull side' >/dev/null || return 1
+      CHATTA_CHAT_HOME=$peer_home chatta chat message send \
+        "[HELLO] Pola -> all: I am on photo-cull." >/dev/null || return 1
+      CHATTA_CHAT_HOME=$peer_home chatta chat message direct "$mine" \
+        "[ASK] Pola -> ${mine}: is the parser interface settled?" >/dev/null || return 1
+      sleep 2
+      CHATTA_CHAT_HOME=$peer_home chatta chat session stop --force >/dev/null 2>&1 || true
+      kill "$FAKE_OWNER" >/dev/null 2>&1 || true
+      unset FAKE_OWNER ;;
     foreign-healthy-client) # another live session holds a healthy client here
       start_test_server || return 1
       sleep 900 & FAKE_OWNER=$!
       CHATTA_CHAT_TEST_OWNER_PID=$FAKE_OWNER \
-        chatta chat session start peerowner 'another live session' >/dev/null ;;
+        chatta chat session start peerowner 'another live session' >/dev/null || return 1 ;;
     *)
       echo "unknown setup: $1"; return 1 ;;
   esac
+  return 0
 }
 
 if [ $# -gt 0 ]; then ids="$*"; else ids=$(jq -r '.evals[].id' "$EVALS"); fi
@@ -119,7 +143,15 @@ for id in $ids; do
   echo "=== case $id ($setup) ===" | tee -a "$OUT/report.txt"
   setup_case "$setup" || { echo "  [error] setup failed, skipping" | tee -a "$OUT/report.txt"; continue; }
 
-  claude -p "$prompt" > "$OUT/case-$id.txt" 2>&1
+  # stream-json so the transcript carries the actual tool calls: a reply that
+  # only *mentions* a command must not read as having run it. Bash and the
+  # chat commands are allowed explicitly -- a non-interactive session has no
+  # way to ask for approval, and a blocked run looks like a passing one.
+  claude -p "$prompt" \
+    --output-format stream-json --verbose \
+    --allowedTools "Bash" "Monitor" "Read" "Glob" "Grep" "Skill" \
+    < /dev/null > "$OUT/case-$id.json" 2>&1
+  python3 evals/flatten_transcript.py "$OUT/case-$id.json" > "$OUT/case-$id.txt"
   if python3 evals/check_transcript.py "$id" "$OUT/case-$id.txt" | tee -a "$OUT/report.txt"; then
     pass=$((pass + 1))
   else
