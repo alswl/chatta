@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "mode": "architecture",
+  "template_type": "architecture",
+  "style": 1,
+  "quality_profile": "standard",
+  "width": 960,
+  "height": 620,
+  "title": "Chatta: CLI over local IRC",
+  "subtitle": "a user-facing view of messaging and deployment",
+  "nodes": [
+    { "id": "user", "kind": "rect", "x": 60, "y": 220, "width": 180, "height": 72, "label": "Agent session", "sublabel": "you run chatta CLI", "fill": "#f0fdf4", "stroke": "#22c55e", "flat": true },
+    { "id": "cli", "kind": "double_rect", "x": 290, "y": 220, "width": 180, "height": 72, "label": "chatta CLI", "sublabel": "channels · DM · inbox", "fill": "#eff6ff", "stroke": "#2563eb", "flat": true },
+    { "id": "irc", "kind": "double_rect", "x": 520, "y": 220, "width": 180, "height": 72, "label": "IRC / ngircd", "sublabel": "127.0.0.1:6667", "fill": "#f5f3ff", "stroke": "#6d28d9", "flat": true },
+    { "id": "messages", "kind": "rect", "x": 750, "y": 220, "width": 150, "height": 72, "label": "Messages", "sublabel": "shared or direct", "fill": "#fffbeb", "stroke": "#f59e0b", "flat": true },
+    { "id": "deployment", "kind": "rect", "x": 405, "y": 410, "width": 260, "height": 72, "label": "macOS deployment", "sublabel": "chatta-admin + launchd", "fill": "#fff7ed", "stroke": "#f97316", "flat": true }
+  ],
+  "arrows": [
+    { "id": "user-cli", "source": "user", "target": "cli", "source_port": "right", "target_port": "left", "flow": "control", "label": "run" },
+    { "id": "cli-irc", "source": "cli", "target": "irc", "source_port": "right", "target_port": "left", "flow": "data" },
+    { "id": "irc-messages", "source": "irc", "target": "messages", "source_port": "right", "target_port": "left", "flow": "async" },
+    { "id": "deployment-irc", "source": "deployment", "target": "irc", "source_port": "top", "target_port": "bottom", "flow": "write", "label": "keeps running" }
+  ],
+  "legend_orientation": "horizontal",
+  "legend_x": 70,
+  "legend_y": 550,
+  "legend_locked": true,
+  "legend": [
+    { "flow": "control", "label": "user action" },
+    { "flow": "data", "label": "IRC connection" },
+    { "flow": "async", "label": "message delivery" },
+    { "flow": "write", "label": "deployment" }
+  ],
+  "footer": "Local-first deployment",
+  "footer_x": 750,
+  "footer_y": 550
+}
