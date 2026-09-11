@@ -6,3 +6,6 @@
 *.out
 vendor/
 .DS_Store
+
+# Eval run artifacts: transcripts, client state, ngircd logs.
+skills/chat/evals/runs/
