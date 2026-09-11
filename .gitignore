@@ -10,6 +10,8 @@ vendor/
 # Private planning and agent instructions live in ../my-specs.
 /specs
 /.specify
+/.agents
+/.claude
 /AGENTS.md
 /CLAUDE.md
 
