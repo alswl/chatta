@@ -32,6 +32,8 @@ else:
     for term in ("misky", "pola", "/Users/", "/home/", "local.agent-chat"):
         if term.lower() in text.lower():
             fail(f"SKILL.md contains forbidden local identifier: {term}")
+    if re.search(r"(?im)^\s*ii(?:\s|$)|(?:pgrep|pkill)[^\n]*\bii\b", text):
+        fail("SKILL.md directly operates or inspects the transport client")
 
 if not PLIST.exists():
     fail("homebrew.ngircd.plist is missing")

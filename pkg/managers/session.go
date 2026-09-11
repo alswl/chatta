@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alswl/chatta/integrations/ii"
 	"github.com/alswl/chatta/pkg/common"
 	"github.com/alswl/chatta/pkg/dal"
 )
@@ -41,7 +42,7 @@ func (m *Manager) Start(nick, role string, takeover bool) error {
 			_ = dal.StopVerifiedSupervisor(old.SupervisorPID, old.SupervisorStartFingerprint)
 		}
 	}
-	if err := dal.ReapStrayII(m.Paths.Conversations); err != nil {
+	if err := ii.ReapStray(m.Paths.Conversations); err != nil {
 		return fmt.Errorf("reap stale ii client: %w", err)
 	}
 
@@ -211,13 +212,13 @@ func (m *Manager) supervise() error {
 			log.Info("owner has exited; stopping supervisor")
 			return nil
 		}
-		client := &dal.II{Paths: m.Paths}
+		client := &ii.Client{Paths: m.Paths}
 		if err := client.Start(st, m.II); err != nil {
 			log.Error("failed to start ii", "error", err)
 			return err
 		}
 		for _, channel := range st.Channels {
-			if err := dal.WriteFIFO(filepath.Join(m.Paths.Conversations, st.Host, "in"), "/j "+channel.Name, 14); err != nil {
+			if err := ii.WriteFIFO(filepath.Join(m.Paths.Conversations, st.Host, "in"), "/j "+channel.Name, 14); err != nil {
 				_ = client.Cmd.Process.Signal(syscall.SIGTERM)
 				_ = client.Close()
 				log.Error("failed to join channel after starting ii", "channel", channel.Name, "error", err)

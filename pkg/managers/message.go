@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alswl/chatta/integrations/ii"
 	"github.com/alswl/chatta/pkg/dal"
 )
 
@@ -67,7 +68,7 @@ func (m *Manager) Send(channel, text string) error {
 	}
 	fifo := filepath.Join(m.Paths.Conversations, st.Host, target, "in")
 	for _, part := range parts {
-		if err := dal.WriteFIFO(fifo, part, 1); err != nil {
+		if err := ii.WriteFIFO(fifo, part, 1); err != nil {
 			return fmt.Errorf("send: %w", err)
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -93,7 +94,7 @@ func (m *Manager) DM(nick, text string) error {
 	offset := fileSize(serverOut)
 	firstUnsent := 0
 	if _, err := os.Stat(query); os.IsNotExist(err) {
-		if err := dal.WriteFIFO(filepath.Join(server, "in"), "/j "+nick+" "+parts[0], 1); err != nil {
+		if err := ii.WriteFIFO(filepath.Join(server, "in"), "/j "+nick+" "+parts[0], 1); err != nil {
 			return err
 		}
 		firstUnsent = 1
@@ -109,7 +110,7 @@ func (m *Manager) DM(nick, text string) error {
 		}
 	}
 	for _, part := range parts[firstUnsent:] {
-		if err := dal.WriteFIFO(query, part, 1); err != nil {
+		if err := ii.WriteFIFO(query, part, 1); err != nil {
 			return err
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -161,7 +162,7 @@ func (m *Manager) Poll(replay bool) ([]string, error) {
 			return nil, err
 		}
 		for _, line := range lines {
-			_, nick, _, ok := dal.ParseLine(line)
+			_, nick, _, ok := ii.ParseLine(line)
 			if ok && nick == st.Nick {
 				continue
 			}
@@ -174,7 +175,7 @@ func (m *Manager) Poll(replay bool) ([]string, error) {
 }
 
 func renderLine(line, source string) string {
-	ts, nick, text, ok := dal.ParseLine(line)
+	ts, nick, text, ok := ii.ParseLine(line)
 	if !ok {
 		return line
 	}
@@ -236,7 +237,7 @@ func (m *Manager) Watch(ctx context.Context, emit func(string)) error {
 			name := entry.Name()
 			lines, next, _ := dal.Tail(filepath.Join(root, name, "out"), offsets[name])
 			for _, line := range lines {
-				_, nick, _, ok := dal.ParseLine(line)
+				_, nick, _, ok := ii.ParseLine(line)
 				if ok && nick == st.Nick {
 					continue
 				}
@@ -269,14 +270,14 @@ func (m *Manager) Who(channel string) ([]string, error) {
 	server := filepath.Join(m.Paths.Conversations, st.Host)
 	out := filepath.Join(server, "out")
 	offset := fileSize(out)
-	if err := dal.WriteFIFO(filepath.Join(server, "in"), "/NAMES "+target, 1); err != nil {
+	if err := ii.WriteFIFO(filepath.Join(server, "in"), "/NAMES "+target, 1); err != nil {
 		return nil, err
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		lines, _, _ := dal.Tail(out, offset)
 		for _, line := range lines {
-			name, names, ok := dal.ParseNames(line)
+			name, names, ok := ii.ParseNames(line)
 			if !ok || name != target {
 				continue
 			}

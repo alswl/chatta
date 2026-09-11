@@ -27,12 +27,3 @@ func TestIsSupervisorRejectsUnrelatedProcess(t *testing.T) {
 		t.Fatal("test process must not be treated as supervisor")
 	}
 }
-
-func TestIsIIForHomeRequiresExactClientHome(t *testing.T) {
-	if !isIIForHome("/opt/homebrew/bin/ii -s 127.0.0.1 -i /tmp/a/irc", "/tmp/a/irc") {
-		t.Fatal("expected ii client home match")
-	}
-	if isIIForHome("/opt/homebrew/bin/ii -i /tmp/ab/irc", "/tmp/a/irc") {
-		t.Fatal("must not match a different client home")
-	}
-}

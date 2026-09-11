@@ -87,6 +87,21 @@ for ref in (ROOT / "references").glob("*.md"):
 
 # ---- 4. One language: docs, examples and eval files are English -------------
 
+# ii remains an installation prerequisite, but the agent workflow must not
+# operate or explain its implementation details. Installation mentions are
+# allowed; direct commands and transport-file procedures are not.
+transport_patterns = [
+    (r"(?im)^\s*(?:ii)(?:\s|$)", "direct ii command"),
+    (r"(?i)ii[^\n]*(?:directory|manual|command|file format|layout|process)", "ii implementation detail"),
+    (r"(?i)(?:cat|tail|head|echo|printf|pgrep|pkill)[^\n]*(?:/in\b|/out\b|FIFO|ii)", "direct transport file/process operation"),
+    (r"(?i)references/ii-manual\.md", "retired ii manual reference"),
+]
+for doc in DOCS + [ROOT / "assets" / "quickstart.sh"]:
+    text = doc.read_text(errors="replace")
+    for pattern, label in transport_patterns:
+        if re.search(pattern, text):
+            err(f"{doc.name}: {label} is outside the Chatta CLI boundary")
+
 cjk_re = re.compile("[\u3000-\u303f\u3400-\u4dbf\u4e00-\u9fff\uff00-\uffef]")
 for doc in DOCS + [ROOT / "assets" / "quickstart.sh"] + sorted((ROOT / "evals").glob("*")):
     if doc.is_dir():

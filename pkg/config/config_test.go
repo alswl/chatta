@@ -26,3 +26,14 @@ func TestChatConfigurationPrecedence(t *testing.T) {
 		t.Fatalf("flag must override environment: %+v %v", config.Chat, err)
 	}
 }
+
+func TestChatTransportConfigurationIsLoaded(t *testing.T) {
+	t.Setenv("CHATTA_CHAT_II", "/custom/ii")
+	config, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.Chat.II != "/custom/ii" {
+		t.Fatalf("expected configured transport path, got %q", config.Chat.II)
+	}
+}

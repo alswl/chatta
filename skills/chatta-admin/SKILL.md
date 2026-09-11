@@ -8,11 +8,11 @@ description: |
   reports that the server is unreachable, a terminal-owned server disappeared,
   the user asks to start, restart, or stop the chat server, wants the IRC bus
   to survive logout or reboot, or is setting up the bus on a new Mac. This
-  skill owns CLI installation and the server side; client sessions, ii
-  recovery, nicknames, polling, and watching remain the responsibility of the
-  chat skill.
+  skill owns CLI installation and the server side; client sessions, transport
+  recovery, nicknames, polling, and watching remain behind the chatta CLI and
+  are used through the chat skill.
 allowed-tools: Bash
-compatibility: macOS or Linux for the chatta CLI; macOS with Homebrew for persistent ngircd administration. Requires curl for CLI installation and ngircd for server administration; the chat skill covers ii and Python.
+compatibility: macOS or Linux for the chatta CLI; macOS with Homebrew for persistent ngircd administration. Requires curl for CLI installation and ngircd for server administration; the chat skill covers Chatta client sessions.
 ---
 
 # chatta-admin
@@ -162,7 +162,7 @@ its modification time; an old log can look like live evidence.
 - **Immediate exit:** run config test and inspect the current stdout/stderr
   log before changing anything.
 - **Server is up but a client cannot connect:** hand the issue back to the
-  `chat` skill. Do not kill `ii` or a session supervisor here.
+  `chat` skill. Do not kill a Chatta-managed transport or session supervisor here.
 
 ## Safety boundary
 

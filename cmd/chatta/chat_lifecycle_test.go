@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -23,6 +24,13 @@ func TestChatCommandExposesLifecycleCommands(t *testing.T) {
 	}
 	if supervisorCmd.Hidden != true {
 		t.Fatal("supervisor command must be hidden")
+	}
+}
+
+func TestIIFlagIsAdvancedChattaTransportConfiguration(t *testing.T) {
+	flag := chatCmd.PersistentFlags().Lookup("ii")
+	if flag == nil || !strings.Contains(flag.Usage, "Chatta-managed") {
+		t.Fatalf("ii flag does not describe Chatta ownership: %#v", flag)
 	}
 }
 

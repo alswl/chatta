@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alswl/chatta/integrations/ii"
 	"github.com/alswl/chatta/pkg/common"
 	"github.com/alswl/chatta/pkg/dal"
 )
@@ -23,7 +24,7 @@ func (m *Manager) Join(channel string) error {
 			return nil
 		}
 	}
-	if err := dal.WriteFIFO(filepath.Join(m.Paths.Conversations, st.Host, "in"), "/j "+target, 1); err != nil {
+	if err := ii.WriteFIFO(filepath.Join(m.Paths.Conversations, st.Host, "in"), "/j "+target, 1); err != nil {
 		return err
 	}
 	deadline := time.Now().Add(10 * time.Second)
@@ -52,7 +53,7 @@ func (m *Manager) Part(channel, reason string) error {
 			kept = append(kept, c)
 		}
 	}
-	if err := dal.WriteFIFO(filepath.Join(m.Paths.Conversations, st.Host, target, "in"), "/l "+strings.TrimSpace(reason), 1); err != nil {
+	if err := ii.WriteFIFO(filepath.Join(m.Paths.Conversations, st.Host, target, "in"), "/l "+strings.TrimSpace(reason), 1); err != nil {
 		return err
 	}
 	st.Channels = kept

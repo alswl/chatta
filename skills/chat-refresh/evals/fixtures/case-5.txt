@@ -1,2 +1,2 @@
 RAN: Bash /workspace/skills/chat/assets/quickstart.sh
-SAY: ⚠️ Chat refresh failed because ii is unavailable, so I could not read the inbox. Please install ii before retrying.
+SAY: ⚠️ Chat refresh failed because the Chatta transport client is unavailable, so I could not read the inbox. Please install the required transport before retrying.

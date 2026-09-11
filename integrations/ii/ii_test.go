@@ -1,16 +1,27 @@
 //go:build darwin || linux
 
-package dal
+package ii
 
 import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/alswl/chatta/pkg/common"
+	"github.com/alswl/chatta/pkg/dal"
 	"golang.org/x/sys/unix"
 )
+
+func TestStartReportsActionableMissingTransport(t *testing.T) {
+	client := &Client{Paths: dal.ResolvePaths(filepath.Join(t.TempDir(), "client"))}
+	err := client.Start(common.ChatSession{Host: "127.0.0.1", Port: 6667, Nick: "test"}, filepath.Join(t.TempDir(), "missing-ii"))
+	if err == nil || !strings.Contains(err.Error(), "chat transport") || !strings.Contains(err.Error(), "install ii") {
+		t.Fatalf("expected actionable missing transport error, got %v", err)
+	}
+}
 
 func TestParseLineAndNames(t *testing.T) {
 	ts, nick, text, ok := ParseLine("1700000000 <pola> [ASK] hello")
@@ -67,19 +78,25 @@ func TestFIFOReaderObservesOpenFIFOWithoutWriting(t *testing.T) {
 	t.Fatal("open FIFO was not observed")
 }
 
-func TestLsofHasPathRequiresAnExactNameRecord(t *testing.T) {
+func TestLsofHasPathRequiresExactNameRecord(t *testing.T) {
 	path := "/private/tmp/client/irc/server/#agents/in"
 	output := []byte("p123\nfcwd\nn/private/tmp/client\nfn\nn" + path + "\n")
-	if !lsofHasPath(output, path) {
-		t.Fatal("expected matching lsof name record")
-	}
-	if lsofHasPath(output, path+"-backup") {
-		t.Fatal("prefix match must not make a different FIFO healthy")
+	if !lsofHasPath(output, path) || lsofHasPath(output, path+"-backup") {
+		t.Fatal("lsof path matching is not exact")
 	}
 }
 
 func TestLsofExecutableResolvesOnThisPlatform(t *testing.T) {
 	if _, err := os.Stat(lsofExecutable()); err != nil {
 		t.Fatalf("lsof executable is not available: %v", err)
+	}
+}
+
+func TestIsIIForHomeRequiresExactClientHome(t *testing.T) {
+	if !isIIForHome("/opt/homebrew/bin/ii -s 127.0.0.1 -i /tmp/a/irc", "/tmp/a/irc") {
+		t.Fatal("expected ii client home match")
+	}
+	if isIIForHome("/opt/homebrew/bin/ii -i /tmp/ab/irc", "/tmp/a/irc") {
+		t.Fatal("must not match a different client home")
 	}
 }

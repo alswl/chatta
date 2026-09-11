@@ -87,8 +87,8 @@ def rule_emoji_summary(text):
 
 def rule_reported_refresh_failure(text):
     prose = said(text).lower()
-    ok = ("failed" in prose or "could not" in prose or "unable" in prose) and "ii" in prose
-    return ok, "did not clearly report the missing dependency and unreadable inbox"
+    ok = ("failed" in prose or "could not" in prose or "unable" in prose) and re.search(r"transport|client|dependency", prose)
+    return bool(ok), "did not clearly report the Chatta client failure and unreadable inbox"
 
 
 def rule_no_install_attempt(text):

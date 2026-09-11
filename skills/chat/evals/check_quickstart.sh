@@ -15,7 +15,7 @@ set -uo pipefail
 SKILL=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 QS=${QS:-$SKILL/assets/quickstart.sh}
 tmp=${TMPDIR:-/tmp}
-BASE=${tmp%/}/chatta-chat-eval   # trailing slash stripped: ii's argv holds the normalized path
+BASE=${tmp%/}/chatta-chat-eval   # trailing slash stripped: the managed transport receives the normalized path
 export CHATTA_CHAT_HOST=127.0.0.1
 export CHATTA_CHAT_PORT=6768
 export CHATTA_IRC_ADMIN_HOME=$BASE/irc
@@ -49,7 +49,7 @@ before=$(iipid)
 out=$(cd "$SKILL" && sh "$QS" 2>&1); rc=$?
 after=$(iipid)
 [ $rc -eq 0 ] && ok S2.exit || no S2.exit "rc=$rc: $out"
-[ -n "$before" ] && [ "$before" = "$after" ] && ok S2.same-client || no S2.same-client "ii pid $before -> $after"
+[ -n "$before" ] && [ "$before" = "$after" ] && ok S2.same-client || no S2.same-client "managed client pid $before -> $after"
 echo "$out" | grep -q reusing && ok S2.reuse-path || no S2.reuse-path "did not take the reuse branch"
 h=$(grep -c 'HELLO' "$CHATTA_CHAT_HOME/irc/127.0.0.1/#agents/out" 2>/dev/null)
 [ "${h:-0}" = 1 ] && ok S2.no-second-hello || no S2.no-second-hello "HELLO count=$h"

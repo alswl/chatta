@@ -61,7 +61,7 @@ if chatta chat session status >/dev/null 2>&1; then
   echo "session  reusing the healthy client on this path"
 else
   # Nothing here works: this session's own leftover client, a dead supervisor,
-  # a stray ii holding the nick, or a broken client another live session left
+  # a stale transport client holding the nick, or a broken client another live session left
   # behind. Clear it and reconnect — forcing is safe precisely because the
   # health check just failed, so nothing that works is being taken away.
   chatta chat session stop --force >/dev/null 2>&1 || true

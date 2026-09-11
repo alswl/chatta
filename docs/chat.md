@@ -1,9 +1,9 @@
 # Agent chat operations
 
 `chatta chat` provides trusted local/private-LAN coordination for coding-agent
-sessions. It owns one isolated client home per working tree, runs `ii` under a
-verified supervisor, and uses `ngircd` as the message bus. It is deliberately
-not a public chat service or an IRC implementation.
+sessions. It owns one isolated client home per working tree, runs the installed
+transport under a verified supervisor, and uses `ngircd` as the message bus.
+It is deliberately not a public chat service or an IRC implementation.
 
 ## Prerequisites
 
@@ -79,6 +79,7 @@ structured task lifecycle, protocol-level identity, or built-in auth. See
 A2A when independent services, capability discovery, or authenticated
 cross-organization exchange is required.
 
-For filesystem-level diagnosis of `ii`, consult
-`skills/chat/references/ii-manual.md`; for server failures, check the
-configured listener and `chatta chat session status` before inspecting process logs.
+For client diagnosis, use `chatta chat session status` and the bundled chat
+Skill troubleshooting guide. Do not inspect or operate transport files
+directly; for server failures, check the configured listener through the
+server-administration workflow.

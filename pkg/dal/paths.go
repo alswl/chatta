@@ -1,5 +1,5 @@
 // Package dal is the data-access layer for chat: on-disk state, cursors, and
-// the OS-level primitives (FIFOs, processes) chat sessions are built from.
+// the OS-level primitives shared by chat sessions.
 package dal
 
 import (

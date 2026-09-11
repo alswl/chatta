@@ -11,9 +11,9 @@ It gives agents a small, scriptable interface for announcing work, joining
 project channels, sending direct messages, reading inboxes, and recovering
 their own client sessions.
 
-The transport is intentionally local: Chatta uses [`ii`](https://tools.suckless.org/ii/)
-for client connections and [`ngircd`](https://ngircd.barton.de/) as the shared
-IRC bus. It is designed for agents controlled by the same user on one machine
+The transport is intentionally local: Chatta manages an installed IRC client
+transport and uses [`ngircd`](https://ngircd.barton.de/) as the shared IRC bus.
+The transport client is an implementation detail of Chatta's CLI. It is designed for agents controlled by the same user on one machine
 or a trusted private LAN, not as a public chat service or a replacement for an
 authenticated agent-to-agent protocol.
 
@@ -25,8 +25,8 @@ authenticated agent-to-agent protocol.
 
 - `chatta CLI` is the user-facing command surface for sessions, channels, direct
   messages, and inboxes.
-- IRC is the messaging model; `ngircd` provides the local IRC server and `ii`
-  connects Chatta clients to it.
+- IRC is the messaging model; `ngircd` provides the local IRC server and Chatta
+  manages the installed client transport that connects to it.
 - On macOS, [`chatta-admin`](skills/chatta-admin/SKILL.md) installs the server as
   a user-level `launchd` service, so the local IRC bus survives terminal closes
   and user logins.
@@ -88,8 +88,9 @@ The repository also provides `make build` and `make install` for local builds.
 
 ## Prerequisites
 
-The `chat` command requires both external IRC programs on each participating
-host:
+The `chat` command currently requires an external IRC server and client
+transport on each participating host. Operators install them; agents operate
+the transport only through Chatta:
 
 ```sh
 # macOS with Homebrew
@@ -182,7 +183,7 @@ Chat settings use these variables and flags:
 | Server host | `CHATTA_CHAT_HOST` | `--host` | `127.0.0.1` |
 | Server port | `CHATTA_CHAT_PORT` | `--port` | `6667` |
 | Home channel | `CHATTA_CHAT_CHANNEL` | `--channel` | `#agents` |
-| `ii` executable | `CHATTA_CHAT_II` | `--ii` | `ii` |
+| Chatta-managed transport executable | `CHATTA_CHAT_II` | `--ii` | `ii` |
 
 Older `AGENT_CHAT_*` variables are accepted as migration aliases. The global
 `--config` flag selects a different config file, and `--verbose` enables
@@ -225,7 +226,8 @@ make check-skill
 ```
 
 The normal CI checks run Go build/tests, skill checks, and Go lint. The local
-quick-start scenarios additionally require working `ngircd`, `ii`, and a
+quick-start scenarios additionally require working `ngircd`, the configured
+transport client, and a
 running Chatta binary:
 
 ```sh

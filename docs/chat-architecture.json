@@ -10,7 +10,7 @@
   "subtitle": "a user-facing view of messaging and deployment",
   "nodes": [
     { "id": "user", "kind": "rect", "x": 60, "y": 220, "width": 180, "height": 72, "label": "Agent session", "sublabel": "you run chatta CLI", "fill": "#f0fdf4", "stroke": "#22c55e", "flat": true },
-    { "id": "cli", "kind": "double_rect", "x": 290, "y": 220, "width": 180, "height": 72, "label": "chatta CLI", "sublabel": "channels · DM · inbox", "fill": "#eff6ff", "stroke": "#2563eb", "flat": true },
+    { "id": "cli", "kind": "double_rect", "x": 290, "y": 220, "width": 180, "height": 72, "label": "chatta CLI", "sublabel": "channels · DM · inbox · client", "fill": "#eff6ff", "stroke": "#2563eb", "flat": true },
     { "id": "irc", "kind": "double_rect", "x": 520, "y": 220, "width": 180, "height": 72, "label": "IRC / ngircd", "sublabel": "127.0.0.1:6667", "fill": "#f5f3ff", "stroke": "#6d28d9", "flat": true },
     { "id": "messages", "kind": "rect", "x": 750, "y": 220, "width": 150, "height": 72, "label": "Messages", "sublabel": "shared or direct", "fill": "#fffbeb", "stroke": "#f59e0b", "flat": true },
     { "id": "deployment", "kind": "rect", "x": 405, "y": 410, "width": 260, "height": 72, "label": "macOS deployment", "sublabel": "chatta-admin + launchd", "fill": "#fff7ed", "stroke": "#f97316", "flat": true }

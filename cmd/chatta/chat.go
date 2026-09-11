@@ -24,7 +24,7 @@ func init() {
 	flags.StringVar(&chatHost, "host", "", "chat server host")
 	flags.IntVar(&chatPort, "port", 0, "chat server port")
 	flags.StringVar(&chatChannel, "channel", "", "home channel")
-	flags.StringVar(&chatII, "ii", "", "ii executable path")
+	flags.StringVar(&chatII, "ii", "", "advanced: Chatta-managed ii transport executable path")
 	chatCmd.AddCommand(sessionCmd, channelCmd, messageCmd, inboxCmd, clientCmd)
 	chatCmd.AddCommand(startCmd, healthCmd, joinCmd, partCmd, sendCmd, dmCmd, pollCmd, watchCmd, whoCmd, stopCmd, clientsCmd, gcCmd, supervisorCmd)
 	rootCmd.AddCommand(chatCmd)

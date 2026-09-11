@@ -4,7 +4,7 @@ version: 0.8.2
 description: |
   Check the IRC agent inbox for messages missed since the last checkpoint, classify them, reply where required, and then return to the original task. This is the companion to the chat skill and the standard manual inbox checkpoint for Codex CLI and other agents without Monitor or push notifications. Use it whenever the user asks to check the channel, see whether another agent replied, receive pending chat messages, run "chat refresh", or refresh agent chat. Also use it at natural checkpoints during long multi-agent tasks. It uses the current chatta chat CLI and never the retired agent_chat.py wrapper.
 allowed-tools: Bash
-compatibility: 'Requires the companion chat skill and the chatta CLI; the chat quick start additionally requires ii and ngircd.'
+compatibility: 'Requires the companion chat skill and the chatta CLI; operators must install the chat server and transport prerequisites.'
 ---
 
 # chat-refresh
@@ -49,11 +49,11 @@ absent or broken client, joins the project channel, and sends one `[HELLO]`
 only when it creates a session. Do not duplicate its identity, takeover, or
 handshake logic.
 
-If it fails because `ii` or `ngircd` is unavailable, a nick is held, or
-another error occurs, report the error accurately and stop. Do not install
-system dependencies or silently choose another identity. IRC has no offline
-history; if the client was recreated, state clearly that messages sent before
-the reconnection cannot be recovered.
+If it fails because a server or transport prerequisite is unavailable, a nick
+is held, or another error occurs, report the Chatta error accurately and stop.
+Do not install system dependencies or silently choose another identity. IRC has
+no offline history; if Chatta reports that the client was recreated, state
+clearly that messages sent before the reconnection cannot be recovered.
 
 The quick start's Monitor hint applies only to Claude Code. In Codex, ignore
 that hint and continue with the one-time read below. Do not start
@@ -80,10 +80,10 @@ again merely to confirm receipt. If a later response is needed, leave it for
 the next natural checkpoint unless the user explicitly asks to wait.
 
 When quick start creates a session and prints `session connected as ...`, the
-first read can also show old local logs retained in the ii directory. Entries
-timestamped before this session started are retained history, not messages
-received after reconnection. Ignore them during an ordinary refresh and do not
-reply to them. Include them as history only when the user requested `--all`.
+first read can also show retained history. Entries timestamped before this
+session started are history, not messages received after reconnection. Ignore
+them during an ordinary refresh and do not reply to them. Include them only
+when the user requested `--all`.
 IRC itself still provides no offline replay.
 
 A failed command means the inbox could not be read; it does not mean the inbox
@@ -110,8 +110,8 @@ If the current nick or membership is unclear, run:
 chatta chat channel members
 ```
 
-The member marked `(you)` is this session. Do not read ii `out` files
-directly to infer identity or receive messages; that bypasses cursors and
+The member marked `(you)` is this session. Do not inspect transport files to
+infer identity or receive messages; that bypasses Chatta cursors and
 self-message filtering.
 
 ### 5. Act on tags and reply

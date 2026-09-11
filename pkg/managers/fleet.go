@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/alswl/chatta/integrations/ii"
 	"github.com/alswl/chatta/pkg/common"
 	"github.com/alswl/chatta/pkg/dal"
 )
@@ -25,13 +26,13 @@ func (m *Manager) Stop(force bool) error {
 		}
 	}
 	server := filepath.Join(m.Paths.Conversations, st.Host)
-	_ = dal.WriteFIFO(filepath.Join(server, "in"), "/q leaving", 0)
+	_ = ii.WriteFIFO(filepath.Join(server, "in"), "/q leaving", 0)
 	if st.SupervisorPID > 0 {
 		if err := dal.StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint); err != nil {
 			return err
 		}
 	}
-	if err := dal.ReapStrayII(m.Paths.Conversations); err != nil {
+	if err := ii.ReapStray(m.Paths.Conversations); err != nil {
 		return err
 	}
 	st.SupervisorPID = 0
@@ -56,10 +57,10 @@ func (m *Manager) Survey() ([]common.ClientSurvey, error) {
 			supervisorState = "alive"
 		}
 		clientState := "down"
-		if dal.FIFOReader(filepath.Join(home, "irc", st.Host, st.HomeChannel.Name, "in")) {
+		if ii.FIFOReader(filepath.Join(home, "irc", st.Host, st.HomeChannel.Name, "in")) {
 			clientState = "alive"
 		}
-		iiPIDs, _ := dal.IIPIDs(filepath.Join(home, "irc"))
+		iiPIDs, _ := ii.PIDs(filepath.Join(home, "irc"))
 		if clientState == "down" && len(iiPIDs) > 0 {
 			clientState = "stray"
 		}
@@ -134,7 +135,7 @@ func (m *Manager) GC(dryRun, prune bool) (string, error) {
 			continue
 		}
 		if orphanII {
-			if err := dal.ReapStrayII(filepath.Join(row.ClientHome, "irc")); err != nil {
+			if err := ii.ReapStray(filepath.Join(row.ClientHome, "irc")); err != nil {
 				return "", err
 			}
 			b.WriteString("  reaped orphan ii process(es)\n")
@@ -148,7 +149,7 @@ func (m *Manager) GC(dryRun, prune bool) (string, error) {
 			}
 		}
 		if !orphanII {
-			if err := dal.ReapStrayII(filepath.Join(row.ClientHome, "irc")); err != nil {
+			if err := ii.ReapStray(filepath.Join(row.ClientHome, "irc")); err != nil {
 				return "", err
 			}
 		}

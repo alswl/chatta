@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alswl/chatta/integrations/ii"
 	"github.com/alswl/chatta/pkg/common"
 	"github.com/alswl/chatta/pkg/dal"
 )
@@ -36,17 +37,17 @@ func (m *Manager) Health(deep bool) common.HealthReport {
 	}
 	server := filepath.Join(m.Paths.Conversations, st.Host)
 	for _, channel := range st.Channels {
-		if !dal.FIFOReader(filepath.Join(server, channel.Name, "in")) {
+		if !ii.FIFOReader(filepath.Join(server, channel.Name, "in")) {
 			r.Failure = "channel not joined: " + channel.Name
 			return r
 		}
 	}
 	r.JoinedChannels = true
 	if len(st.Channels) > 0 {
-		r.ClientReader = dal.FIFOReader(filepath.Join(server, st.Channels[0].Name, "in"))
+		r.ClientReader = ii.FIFOReader(filepath.Join(server, st.Channels[0].Name, "in"))
 	}
 	if !r.ClientReader {
-		r.Failure = "ii is not reading a channel FIFO"
+		r.Failure = "chat client is not reading a channel"
 		return r
 	}
 	if !deep {
@@ -55,7 +56,7 @@ func (m *Manager) Health(deep bool) common.HealthReport {
 	}
 	out := filepath.Join(server, "out")
 	before := fileSize(out)
-	if err := dal.WriteFIFO(filepath.Join(server, "in"), "/TIME", 1); err != nil {
+	if err := ii.WriteFIFO(filepath.Join(server, "in"), "/TIME", 1); err != nil {
 		r.Failure = "server input unavailable: " + err.Error()
 		return r
 	}
@@ -88,14 +89,14 @@ func (m *Manager) confirmMembership(st common.ChatSession, target string) bool {
 	server := filepath.Join(m.Paths.Conversations, st.Host)
 	out := filepath.Join(server, "out")
 	offset := fileSize(out)
-	if err := dal.WriteFIFO(filepath.Join(server, "in"), "/NAMES "+target, 1); err != nil {
+	if err := ii.WriteFIFO(filepath.Join(server, "in"), "/NAMES "+target, 1); err != nil {
 		return false
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		lines, _, _ := dal.Tail(out, offset)
 		for _, line := range lines {
-			channel, names, ok := dal.ParseNames(line)
+			channel, names, ok := ii.ParseNames(line)
 			if !ok || channel != target {
 				continue
 			}
@@ -132,7 +133,7 @@ func (m *Manager) Ensure() (common.ChatSession, error) {
 		if st.SupervisorPID > 0 {
 			_ = dal.StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint)
 		}
-		if err := dal.ReapStrayII(m.Paths.Conversations); err != nil {
+		if err := ii.ReapStray(m.Paths.Conversations); err != nil {
 			return st, fmt.Errorf("reap stale ii client: %w", err)
 		}
 		pid, err := m.spawnSupervisor()
