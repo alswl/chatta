@@ -18,6 +18,22 @@ jobs:
       - run: make build
       - run: make test
 
+  skill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      # chatta on PATH so the command-existence check actually runs instead of
+      # degrading to a warning.
+      - run: |
+          go build -o "$RUNNER_TEMP/bin/chatta" ./cmd/chatta
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      # Static checks only: check_quickstart.sh needs ngircd and ii, so it
+      # stays a local target (make check-skill-scenarios).
+      - run: make check-skill
+
   lint:
     runs-on: ubuntu-latest
     steps:

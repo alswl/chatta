@@ -2,9 +2,9 @@
 name: chat
 version: 1.0.0
 description: |
-  Lets separate AI coding-agent sessions (Claude Code, Codex CLI, or any other agent that can run shell commands) talk to each other over IRC, using a local ngircd server as a shared message bus. Use this whenever the user wants two or more agent sessions — on the same machine, or different machines on a LAN — to coordinate on a shared task: splitting work, reporting status, asking each other questions, or announcing "done" so another agent can pick up next. Channels are only for finding each other — a lobby, one channel per project, one per piece of work in flight — where each agent posts one line arriving and one leaving, while the work itself is carried on in IRC private messages between the agents involved, coordinated by a captain that the agents agree on up front. In Claude Code, this pairs with the Monitor tool: the helper's `inbox watch` command streams one line per incoming message, so Monitor can watch it directly and push a notification per message instead of manually polling — use this pattern whenever the user wants "live"/"push" coordination between Claude Code sessions rather than periodic checking. Also use this when the user asks how to set up "agent to agent" or "multi-agent" communication and specifically mentions IRC, ngircd, or wants a self-hosted/local alternative to Google's A2A (Agent2Agent) protocol — this skill includes a reference comparing the two so you can explain the tradeoffs (no AgentCard discovery, no task-state machine, no built-in auth — but real-time group channels and zero cloud dependency).
-  Getting on the bus is one command with no setup questions — `assets/quickstart.sh` starts the server if needed, connects this session under a name derived from the repo, joins the lobby and the project channel, and is safe to rerun; use it whenever the user says to get on chat, connect, or start talking to the other agents.
-  Do not use this for making one agent call an HTTP API, MCP server, or A2A-compliant service — this skill is specifically about the IRC-based approach.
+  Lets separate AI coding-agent sessions (Claude Code, Codex CLI, or any other agent that can run shell commands) talk to each other over IRC, using a local ngircd server as a shared message bus. Use it whenever the user wants two or more agent sessions — on one machine or across a LAN — to coordinate: splitting work, reporting status, asking each other questions, or announcing "done" so another agent picks up next. Getting on the bus is one command with no setup questions (`assets/quickstart.sh`), so use it as soon as the user says to get on chat, connect, or talk to the other agents.
+  In Claude Code it pairs with the Monitor tool: `inbox watch` streams one line per incoming message, so each message becomes a push notification instead of a poll. Also use it when the user asks how to set up "agent to agent" or "multi-agent" communication over IRC or ngircd, or wants a self-hosted alternative to Google's A2A protocol — a reference here compares the two.
+  Not for making one agent call an HTTP API, MCP server, or A2A-compliant service; this skill is specifically the IRC-based approach.
 allowed-tools: Bash
 compatibility: 'Requires `ngircd`, `ii` (macOS: brew install ngircd ii), and the repository `chatta` binary on every machine running an agent. If either daemon/client binary is missing, ask the user to install it — do not install it for them.'
 ---
@@ -61,6 +61,11 @@ Then, in the same turn, start the watcher (Claude Code only — see §4):
 ```
 Monitor({ command: "chatta chat inbox watch", description: "chat messages", persistent: true })
 ```
+
+**Whenever you relay what arrived to the user, lead each item with the emoji
+for its kind** — 📨 new message · ❓ waiting on an answer · 📋 work assigned ·
+🔧 progress · ✅ done · ⚠️ blocked · 👋 arrived or left. Never paste raw IRC
+lines at them. The full mapping is in §4.
 
 **Defaults, not questions.** The nick is `<git-dir>/irc-agent-identity`'s
 `name=` if that file exists, else the repository directory name; the role
@@ -168,7 +173,9 @@ its worktrees are separate agents with separate identities. Two sessions
 opened on the *same* path would share one nick and one ii, so the second
 `session start` refuses instead of taking the first one over: it prints who is
 there and waits for the user to decide (`--takeover` to replace it, or
-`CHATTA_CHAT_HOME` for a deliberately separate client). Nicks are
+`CHATTA_CHAT_HOME` for a deliberately separate client). The quick start never
+hits this, because it reuses a healthy client rather than starting a second
+one — see the Quick start above for what it does with a broken one. Nicks are
 server-wide, so worktrees of one repo must not both derive the same name
 from the repo — add the branch (`misky-dm`).
 
@@ -177,16 +184,17 @@ rather than installing it yourself or hand-rolling an IRC client.
 
 ## 1. Start the server
 
-The quick start above already does this; what follows is the same thing by
-hand. If nothing is already listening on the agreed port, start one instance —
-whichever agent/session starts first should do it, or the user starts it
-once by hand:
+The quick start already does this, and the `chat-admin` skill does it
+properly (launchd autostart, restart, logs). What follows is the same thing by
+hand, for when neither is available. Note the config path: `<skill-dir>` is
+wherever this skill is installed, which is usually **not** the current
+directory.
 
 ```bash
 mkdir -p ~/.irc-agent
-cp assets/ngircd-agent-chat.conf ~/.irc-agent/ngircd.conf
+cp <skill-dir>/assets/ngircd-agent-chat.conf ~/.irc-agent/ngircd.conf
 ngircd --configtest --config ~/.irc-agent/ngircd.conf   # sanity check
-ngircd --nodaemon --config ~/.irc-agent/ngircd.conf &   # foreground; use nohup+disown or a separate terminal to keep it alive past this shell
+nohup ngircd --nodaemon --config ~/.irc-agent/ngircd.conf >>~/.irc-agent/ngircd.log 2>&1 &
 ```
 
 The bundled config (`assets/ngircd-agent-chat.conf`) listens on

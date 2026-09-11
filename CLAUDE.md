@@ -46,11 +46,15 @@ than matching the older style silently.
   `TestInvocationSessionIDPrefersCallingRuntime` reads the real Claude/Codex
   session id and fails; it passes outside one. Don't read it as a regression,
   and don't use the suite as a green baseline from within a session.
-- **`session stop --force` does not clear the owner recorded in
-  `state.json`.** When that owner is another live session, the next
-  `session start` still refuses — pass `--takeover` too.
+- **`session stop --force` cannot disown a client.** It clears the supervisor
+  fields but keeps `state.json`'s owner, so when that owner is another live
+  session the next `session start` still refuses; pass `--takeover` too.
+  Clearing the owner instead is not a fix: `dal.ValidateSession` requires
+  `Owner.PID > 0`, so a disowned state cannot be written back at all. Giving
+  the schema a way to express "no owner" is the change this needs.
 - **A nick is not released the moment its client dies.** Back-to-back
-  `session stop --force; session start` fails with "nick already in use"
-  roughly twice in five tries, and `session start` can report that error even
-  after the client did come up. Trust `chatta chat session status` over the
-  message, and retry a few seconds later.
+  `session stop --force; session start` fails with "nick already in use" two
+  or three times in five: the server holds the nick until the old connection
+  closes. Retrying a few seconds later is what works (the quick start does),
+  and waiting inside `session start` instead only converts a fast failure into
+  a 20-second timeout — measured, not guessed.

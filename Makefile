@@ -26,7 +26,19 @@ COVERAGE_PACKAGES := $(shell go list ./pkg/... 2>/dev/null | paste -sd, -)
 COVERAGE_PROFILING_DIR := $(PROJECT_DIR)/.cover
 
 .PHONY: all
-all: fmt test build
+all: fmt test build check-skill
+
+# Static checks on skills/chat: documented commands exist, no flat aliases,
+# referenced paths present, English throughout. Pure python, seconds.
+.PHONY: check-skill
+check-skill:
+	@python3 skills/chat/evals/check_skill.py
+
+# The quick start's eight scenarios against a real bus on port 6768. Needs
+# ngircd, ii and the chatta binary, so it is not part of `all` or CI.
+.PHONY: check-skill-scenarios
+check-skill-scenarios:
+	@cd skills/chat && ./evals/check_quickstart.sh
 
 include hack/makefile-go/_git.mk
 include hack/makefile-go/build.mk
