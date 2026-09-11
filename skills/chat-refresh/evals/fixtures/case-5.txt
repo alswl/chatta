@@ -1,0 +1,2 @@
+RAN: Bash /workspace/skills/chat/assets/quickstart.sh
+SAY: ⚠️ Chat refresh failed because ii is unavailable, so I could not read the inbox. Please install ii before retrying.

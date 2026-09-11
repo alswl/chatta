@@ -1,0 +1,3 @@
+RAN: Bash /workspace/skills/chat/assets/quickstart.sh
+RAN: Bash chatta chat inbox read --all
+SAY: 📨 The available history contains two completed handoffs and no current question or task requiring a reply; raw IRC records were omitted.

@@ -1,0 +1,3 @@
+RAN: Bash /workspace/skills/chat/assets/quickstart.sh
+RAN: Bash chatta chat inbox read
+SAY: Nothing in this refresh requires my attention; returning to the current task.

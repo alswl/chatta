@@ -28,11 +28,12 @@ COVERAGE_PROFILING_DIR := $(PROJECT_DIR)/.cover
 .PHONY: all
 all: fmt test build check-skill
 
-# Static checks on skills/chat: documented commands exist, no flat aliases,
-# referenced paths present, English throughout. Pure python, seconds.
+# Static checks on skills/chat plus deterministic, privacy-safe behavior checks
+# for the Codex-oriented chat-refresh companion skill. Pure Python/shell, seconds.
 .PHONY: check-skill
 check-skill:
 	@python3 skills/chat/evals/check_skill.py
+	@skills/chat-refresh/evals/test_checks.sh
 
 # The quick start's eight scenarios against a real bus on port 6768. Needs
 # ngircd, ii and the chatta binary, so it is not part of `all` or CI.

@@ -1,0 +1,78 @@
+{
+  "skill_name": "chat-refresh",
+  "notes": "All scenarios use fictional identities and paths. Evaluations must run against an isolated test bus and must never read or write the user's real chat state.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Refresh the agent chat inbox and tell me whether anything needs attention.",
+      "expected_output": "Runs the chat quick start, performs exactly one delta read with `chatta chat inbox read`, does not start Monitor or inbox watch, and reports an empty inbox concisely when no messages are returned.",
+      "setup": "healthy-empty",
+      "checks": ["ran_quickstart", "single_delta_read", "no_monitor_or_watch", "no_legacy_wrapper", "no_session_stop"],
+      "expectations": [
+        "The existing healthy session is reused through the quick-start entry point.",
+        "The inbox is read exactly once and the report does not invent a message.",
+        "The response treats refresh as a Codex checkpoint, not as a background watcher."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Check chat once. The session was just recreated at 2027-01-15 10:00:00. The first inbox read contains an old 2027-01-14 DM from Cedar and a new 2027-01-15 10:00:04 question from Birch. Handle only what is current.",
+      "expected_output": "Runs quick start and one delta read, ignores the pre-session Cedar entry as retained local history, answers Birch by direct message, and summarizes only Birch's current question.",
+      "setup": "fresh-with-stale-log",
+      "checks": ["ran_quickstart", "single_delta_read", "replied_to_birch", "did_not_reply_to_cedar", "no_monitor_or_watch", "no_legacy_wrapper"],
+      "expectations": [
+        "The timestamp before session creation is recognized as retained local history rather than a newly delivered IRC message.",
+        "Birch receives a substantive direct reply using the tagged message format.",
+        "The user-facing summary does not present Cedar's stale message as current."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Refresh chat. Atlas assigned you a documentation task by DM and Birch asked whether the sample API contract is stable. Respond appropriately, then return to the current task.",
+      "expected_output": "Reads once, explicitly accepts or declines Atlas's task with scope and checkpoint, answers Birch with the known status and caveat, uses direct messages for both, then gives a concise emoji-led summary.",
+      "setup": "directed-task-and-question",
+      "checks": ["ran_quickstart", "single_delta_read", "replied_to_atlas", "replied_to_birch", "emoji_summary", "no_channel_work_message", "no_session_stop"],
+      "expectations": [
+        "The task reply explicitly accepts or declines and states scope, deliverable, and next checkpoint.",
+        "The question reply leads with the answer and includes evidence or a precise uncertainty.",
+        "Both one-recipient conversations remain in DMs and the original task resumes afterward."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Take one look at chat. The only entries are a task addressed from Birch to Cedar and Atlas leaving the lobby.",
+      "expected_output": "Reads once, does not act on or repeat the task addressed to Cedar, does not reply to the goodbye broadcast, and reports that nothing requires this agent's attention.",
+      "setup": "messages-for-others",
+      "checks": ["ran_quickstart", "single_delta_read", "no_direct_message", "no_channel_work_message", "no_monitor_or_watch", "no_session_stop"],
+      "expectations": [
+        "A message addressed to another agent is neither handled nor relayed to the user.",
+        "A normal goodbye broadcast receives no reply.",
+        "The final report distinguishes 'nothing for me' from an unreadable inbox."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Refresh chat and let me know what came in. In this scenario the quick-start command fails because the `ii` dependency is unavailable.",
+      "expected_output": "Runs quick start, stops without reading the inbox, reports that refresh failed and that the user must install `ii`, and neither installs software nor falls back to legacy or hand-rolled IRC.",
+      "setup": "missing-ii",
+      "checks": ["ran_quickstart", "no_inbox_read", "reported_refresh_failure", "no_install_attempt", "no_legacy_wrapper", "no_monitor_or_watch"],
+      "expectations": [
+        "The response says the inbox could not be read; it does not claim there were no messages.",
+        "The user is told what dependency is missing without the agent installing it.",
+        "No fallback transport or obsolete Python wrapper is used."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Show me the complete chat history available since this client started.",
+      "expected_output": "Runs quick start and exactly one `chatta chat inbox read --all`, separates historical entries from current actionable messages, and summarizes without dumping raw IRC lines.",
+      "setup": "history-request",
+      "checks": ["ran_quickstart", "single_full_read", "no_monitor_or_watch", "no_legacy_wrapper", "no_raw_log_dump", "no_session_stop"],
+      "expectations": [
+        "The explicit history request uses `--all`; ordinary refresh behavior is not silently changed.",
+        "Raw IRC records are summarized rather than pasted wholesale.",
+        "Historical context is clearly distinguished from messages requiring a current reply."
+      ]
+    }
+  ]
+}
