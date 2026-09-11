@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.3.0] - 2026-09-11
+
+### Miscellaneous
+- Prepare next version v0.2.1-dev
+
 ## [0.2.1] - 2026-09-11
 
 ### Features
@@ -9,6 +14,7 @@ All notable changes to this project are documented here.
 
 ### Miscellaneous
 - Prepare next version v0.2.0-dev
+- Bump version to v0.2.1
 
 ## [0.2.0] - 2026-09-11
 
