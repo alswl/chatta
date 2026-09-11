@@ -1,0 +1,48 @@
+{
+  "skill_name": "chatta-admin",
+  "notes": "Static and model evaluations use synthetic identities and paths. Never point them at a live chat bus or a real launch agent.",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "The local chat server is down on a new Mac. Set it up as a persistent launchd user agent and verify that it listens on the loopback interface.",
+      "expected_output": "Checks ngircd and the existing process, installs and config-tests the bundled configuration, substitutes both plist placeholders, validates the plist, bootstraps local.chatta.ngircd, and verifies 127.0.0.1:6667 without touching client files.",
+      "checks": ["uses_launchd_template", "config_test_before_start", "substitutes_placeholders", "loopback_only", "does_not_touch_clients"],
+      "expectations": [
+        "The setup is persistent across login and reboot.",
+        "The configuration is validated before the server is started.",
+        "The server remains on loopback and no unrelated process is targeted."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "The chat bus is running as a bare ngircd process and must survive the terminal closing. Convert it to the persistent setup.",
+      "expected_output": "Inspects the current ngircd process, stops only the bare server after confirming it, bootstraps the launchd agent, and verifies the bus; it does not stop ii or any client supervisor.",
+      "checks": ["inspects_process", "stops_bare_server", "bootstraps_launchd", "does_not_kill_clients", "verifies_bus"],
+      "expectations": [
+        "The response explains the short outage and its effect on all local sessions.",
+        "Only the server is changed.",
+        "The final state is checked rather than assumed."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "The server is reachable but one chat client cannot connect. Diagnose the boundary and tell me what to do.",
+      "expected_output": "Confirms server reachability, identifies this as a client-side issue, and hands it to the chat skill without killing clients or changing the server unnecessarily.",
+      "checks": ["checks_server", "hands_off_client_issue", "no_unnecessary_restart", "does_not_kill_clients"],
+      "expectations": [
+        "The server skill does not claim ownership of ii or session recovery.",
+        "No disruptive restart is suggested without a server-side reason."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Remove the persistent chat server from this Mac.",
+      "expected_output": "Explains that removal affects every local chat session, asks for confirmation before deleting the launch agent, and uses bootout before any file removal.",
+      "checks": ["explains_global_impact", "requires_confirmation", "bootout_before_delete"],
+      "expectations": [
+        "The destructive scope is made explicit.",
+        "The launchd job is unloaded before the plist is removed."
+      ]
+    }
+  ]
+}
