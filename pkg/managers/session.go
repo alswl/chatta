@@ -58,6 +58,47 @@ func (m *Manager) Start(nick, role string, takeover bool) error {
 	}
 	m.State = session
 	serverOut := filepath.Join(m.Paths.Conversations, session.Host, "out")
+	// A nick is not released the instant its previous client dies: the server
+	// holds it for a few seconds, and an ii that gets rejected does not
+	// re-register on its own. Reconnecting under one's own nick therefore
+	// needs a fresh client, not a longer wait -- so a collision is retried
+	// with a new supervisor rather than reported straight to the caller.
+	var lastErr error
+	for attempt := 0; attempt < nickAttempts; attempt++ {
+		if attempt > 0 {
+			time.Sleep(nickRetryDelay)
+		}
+		err := m.startOnce(&session, serverOut, nick)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		var taken nickTakenError
+		if !errors.As(err, &taken) {
+			return err
+		}
+	}
+	return lastErr
+}
+
+// nickAttempts and nickRetryDelay bound the wait for the server to release a
+// nick this client held moments ago. Measured: a retry a few seconds later
+// succeeds every time, while waiting inside one attempt never does.
+const (
+	nickAttempts   = 3
+	nickRetryDelay = 3 * time.Second
+)
+
+// nickTakenError carries the nick so the retry loop can recognise the case
+// without the caller ever seeing a wrapped sentinel in the message.
+type nickTakenError struct{ nick string }
+
+func (e nickTakenError) Error() string {
+	return fmt.Sprintf("the nick %q is already in use on this server; choose a distinct nick if it belongs to another agent", e.nick)
+}
+
+func (m *Manager) startOnce(base *common.ChatSession, serverOut, nick string) error {
+	session := *base
 	serverOffset := fileSize(serverOut)
 	pid, err := m.spawnSupervisor()
 	if err != nil {
@@ -77,7 +118,7 @@ func (m *Manager) Start(nick, role string, takeover bool) error {
 	for time.Now().Before(deadline) {
 		if nicknameTaken(serverOut, serverOffset, nick) {
 			_ = dal.StopVerifiedSupervisor(pid, session.SupervisorStartFingerprint)
-			return fmt.Errorf("the nick %q is already in use on this server; choose a distinct nick", nick)
+			return nickTakenError{nick: nick}
 		}
 		if report := m.Health(true); report.Owner && report.Supervisor && report.ClientReader && report.ServerLink && report.Membership {
 			return nil

@@ -52,9 +52,9 @@ than matching the older style silently.
   Clearing the owner instead is not a fix: `dal.ValidateSession` requires
   `Owner.PID > 0`, so a disowned state cannot be written back at all. Giving
   the schema a way to express "no owner" is the change this needs.
-- **A nick is not released the moment its client dies.** Back-to-back
-  `session stop --force; session start` fails with "nick already in use" two
-  or three times in five: the server holds the nick until the old connection
-  closes. Retrying a few seconds later is what works (the quick start does),
-  and waiting inside `session start` instead only converts a fast failure into
-  a 20-second timeout — measured, not guessed.
+- **A nick is not released the moment its client dies.** The server holds it
+  until the old connection closes, and a rejected `ii` never re-registers, so
+  reconnecting needs a fresh client rather than a longer wait. `session start`
+  now retries the whole spawn up to three times; don't add another retry
+  around it, and don't "fix" this by waiting inside one attempt — that only
+  turns a fast failure into a 20-second timeout.

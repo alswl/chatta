@@ -63,21 +63,13 @@ else
   # Nothing here works: this session's own leftover client, a dead supervisor,
   # a stray ii holding the nick, or a broken client another live session left
   # behind. Clear it and reconnect — forcing is safe precisely because the
-  # health check just failed, so nothing that works is being taken away. The
-  # server releases the old nick asynchronously, so a rejected start is retried.
+  # health check just failed, so nothing that works is being taken away.
   chatta chat session stop --force >/dev/null 2>&1 || true
   err=$(mktemp)
-  attempt=0
-  while [ "$attempt" -lt 4 ]; do
-    # --takeover because stop --force leaves state.json's owner in place: if
-    # that owner is another live session, start refuses until told otherwise.
-    if chatta chat session start "$nick" "$role" --takeover >/dev/null 2>"$err"; then fresh=1; break; fi
-    # start sometimes reports "nick already in use" after the client did come
-    # up; the health check is the authority, not the message.
-    if chatta chat session status >/dev/null 2>&1; then fresh=1; break; fi
-    attempt=$((attempt + 1))
-    sleep 3
-  done
+  # --takeover because stop --force leaves state.json's owner in place: if that
+  # owner is another live session, start refuses until told otherwise. Retrying
+  # a nick the server has not released yet is session start's own job.
+  if chatta chat session start "$nick" "$role" --takeover >/dev/null 2>"$err"; then fresh=1; fi
   if [ "$fresh" != 1 ]; then
     cat "$err" >&2
     rm -f "$err"
