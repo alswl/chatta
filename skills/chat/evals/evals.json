@@ -66,12 +66,12 @@
     {
       "id": 6,
       "prompt": "get on chat",
-      "expected_output": "With ii missing, the quick start (or session start) fails. The agent tells the user to run brew install ii, installs nothing itself, and does not substitute another way of speaking IRC.",
-      "setup": "no-ii",
+      "expected_output": "With ngircd missing, the quick start (or session start) fails. The agent tells the user to run brew install ngircd, installs nothing itself, and does not substitute another way of speaking IRC.",
+      "setup": "no-ngircd",
       "checks": ["no_install_attempt", "told_user_to_install", "no_handrolled_irc"],
       "expectations": [
         "No brew install, or any other install command, was executed by the agent",
-        "The user is told explicitly to run brew install ii",
+        "The user is told explicitly to run brew install ngircd",
         "No fallback to nc or a hand-written IRC client"
       ]
     },

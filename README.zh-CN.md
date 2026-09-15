@@ -10,9 +10,9 @@ Chatta 是一个 Go CLI 和本地消息总线，用于协调多个编码 Agent �
 一组简洁、可脚本化的命令，用于宣布工作、加入项目频道、发送私信、读取收件箱，
 以及恢复属于当前会话的客户端。
 
-传输层保持本地化：Chatta 管理已安装的 IRC 客户端传输，并使用
-[`ngircd`](https://ngircd.barton.de/) 作为共享消息总线。客户端传输属于 Chatta
-CLI 的内部实现细节。它适合由同一用户
+传输层保持本地化：Chatta 自己在进程内实现 IRC 客户端协议，并使用
+[`ngircd`](https://ngircd.barton.de/) 作为共享消息总线。IRC 客户端是内建在
+Chatta CLI 里的实现细节，无需单独安装客户端程序。它适合由同一用户
 控制的 Agent，在同一台机器或受信任的私有局域网中协作；不是公共聊天服务，也不
 是带认证的 Agent-to-Agent 协议替代品。
 
@@ -23,8 +23,8 @@ CLI 的内部实现细节。它适合由同一用户
 ## 核心概念和部署
 
 - `chatta CLI` 是用户操作入口，负责会话、频道、私信和收件箱。
-- IRC 是消息模型；`ngircd` 提供本地 IRC 服务端，Chatta 负责管理连接它的已安装
-  客户端传输。
+- IRC 是消息模型；`ngircd` 提供本地 IRC 服务端，Chatta 自己在进程内实现连接它
+  所需的客户端协议。
 - 在 macOS 上，[`chatta-admin`](skills/chatta-admin/SKILL.md) 会把服务端安装为用户级
   `launchd` 服务，使本地 IRC 总线在终端关闭和重新登录后继续运行。
 
@@ -81,16 +81,21 @@ go install ./cmd/chatta
 
 ## 前置依赖
 
-`chat` 命令目前要求每台参与协作的主机安装 IRC 服务端和客户端传输。操作员负责
-安装它们，Agent 运行时只通过 Chatta 操作传输：
+`chat` 命令要求每台参与协作的主机安装 IRC 服务端。客户端部分已内建在 Chatta
+里，无需单独安装传输程序：
 
 ```sh
 # macOS + Homebrew
-brew install ngircd ii
+brew install ngircd
 ```
 
 Linux 请使用发行版对应的包管理器安装等价软件。Chatta 只检查这些依赖，
 不会自动安装系统软件。
+
+> **从旧版本 Chatta 升级**：升级前启动的会话依赖外部 `ii` 客户端，与新的
+> 进程内传输不兼容。升级后请重启一次现有会话——
+> `chatta chat session stop --force && chatta chat session start <nick>`——
+> 之后即可卸载 `ii`。
 
 ## 快速开始
 
@@ -171,7 +176,6 @@ chatta chat session stop
 | 服务端地址 | `CHATTA_CHAT_HOST` | `--host` | `127.0.0.1` |
 | 服务端端口 | `CHATTA_CHAT_PORT` | `--port` | `6667` |
 | 主频道 | `CHATTA_CHAT_CHANNEL` | `--channel` | `#agents` |
-| Chatta 管理的传输程序路径 | `CHATTA_CHAT_II` | `--ii` | `ii` |
 
 旧版 `AGENT_CHAT_*` 环境变量仍作为迁移别名支持。全局 `--config` 可以指定其他
 配置文件，`--verbose` 用于开启详细诊断输出。
@@ -210,7 +214,7 @@ make check-skill
 ./bin/chatta version
 ```
 
-CI 会执行 Go 构建、测试、技能检查和 Go lint。需要真实 `ngircd`、`ii` 以及
+CI 会执行 Go 构建、测试、技能检查和 Go lint。需要真实 `ngircd` 以及
 Chatta 二进制的本地 quick-start 场景可运行：
 
 ```sh

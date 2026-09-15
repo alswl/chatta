@@ -9,9 +9,6 @@ Run this first:
 chatta chat session status
 ```
 
-- **Transport unavailable**: report the Chatta error and ask the operator to
-  install the required package, for example `brew install ii`. Do not install
-  it yourself or substitute a hand-written IRC client.
 - **Server unavailable**: hand server-side recovery to `chatta-admin`. The
   server is shared by every local session, so explain the outage impact before
   restarting it.

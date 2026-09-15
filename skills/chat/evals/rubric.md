@@ -95,6 +95,6 @@ Watch these first:
 3. **Leaving when its own task ends** -- reading "I'm done here" as a signal to sign off (case 4).
 4. **Shouting what should be a DM** -- especially questions and assignments (cases 3, 9).
 5. **Seizing a healthy client** -- reaching for `--takeover` on "already on this path" (case 7).
-6. **Installing dependencies** -- `brew install` when ii is missing, or improvising another IRC path (case 6).
+6. **Installing dependencies** -- `brew install` when ngircd is missing, or improvising another IRC path (case 6).
 7. **Dumping the raw log** -- pasting `inbox read` output at the user (case 8).
 8. **Blind restarts** -- repeating `session start` instead of reading what `session status` says broke (case 10).

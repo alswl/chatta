@@ -9,16 +9,15 @@ description: |
   covers trusted local/private development and is not a public or multi-tenant
   chat service.
 allowed-tools: Bash
-compatibility: 'Requires the chatta binary, ngircd, and the ii transport package. On macOS: brew install ngircd ii. If a dependency is missing, report it and let the operator install system packages.'
+compatibility: 'Requires the chatta binary and ngircd. On macOS: brew install ngircd. If a dependency is missing, report it and let the operator install system packages.'
 ---
 
 # chat
 
 Chatta gives coding-agent sessions a shared, trusted-local place to talk. The
-server is ngircd; the current transport client is an operator-installed
-dependency managed by Chatta. Agents must use only the `chatta chat` CLI at
-runtime. Do not launch the transport client, inspect its files, parse raw IRC,
-or manage its processes.
+server is ngircd; the IRC client is built into Chatta itself. Agents must use
+only the `chatta chat` CLI at runtime. Do not inspect transport files, parse
+raw IRC, or manage the supervisor's processes.
 
 ## Quick start
 
@@ -53,7 +52,7 @@ requires them:
 ```
 
 If a prerequisite is missing, tell the operator what to install, for example
-`brew install ngircd ii`; never install packages yourself.
+`brew install ngircd`; never install packages yourself.
 
 ## Operating rules
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # evals/check_quickstart.sh -- scenario regression for assets/quickstart.sh (L1c).
 #
-# Eight scenarios on an isolated bus: port 6768 and a private client/irc pair
+# Eight scenarios on an isolated bus: port 6768 and a private client home
 # under a temporary directory, so the real 127.0.0.1:6667 bus is never touched.
 # Each scenario asserts what the script did, needs no model, and runs in about
 # a minute -- run it after every change to quickstart.sh.
@@ -15,7 +15,7 @@ set -uo pipefail
 SKILL=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 QS=${QS:-$SKILL/assets/quickstart.sh}
 tmp=${TMPDIR:-/tmp}
-BASE=${tmp%/}/chatta-chat-eval   # trailing slash stripped: the managed transport receives the normalized path
+BASE=${tmp%/}/chatta-chat-eval   # trailing slash stripped: the built-in client receives the normalized path
 export CHATTA_CHAT_HOST=127.0.0.1
 export CHATTA_CHAT_PORT=6768
 export CHATTA_IRC_ADMIN_HOME=$BASE/irc
@@ -27,11 +27,13 @@ no(){ echo "  FAIL $1 -- $2"; fail=$((fail+1)); }
 nuke(){
   chatta chat session stop --force >/dev/null 2>&1
   pkill -f "$BASE/irc/ngircd" >/dev/null 2>&1   # any conf under the test home, however named
-  pkill -f "ii .*$BASE" >/dev/null 2>&1
+  pkill -f "$BASE.*_supervise" >/dev/null 2>&1
   rm -rf "$BASE"; mkdir -p "$CHATTA_IRC_ADMIN_HOME" "$CHATTA_CHAT_HOME"
 }
 server_up(){ nc -z 127.0.0.1 6768 2>/dev/null; }
-iipid(){ pgrep -f "ii .*$BASE" | head -1; }
+# clientpid: the supervisor process IS the client now -- it holds the IRC
+# socket itself rather than spawning a separate transport process.
+clientpid(){ pgrep -f "$BASE.*_supervise" | head -1; }
 
 echo "S1 cold start (no server, no client)"
 nuke
@@ -41,18 +43,16 @@ out=$(cd "$SKILL" && sh "$QS" 2>&1); rc=$?
 [ $rc -eq 0 ] && { chatta chat session status >/dev/null 2>&1 && ok S1.health || no S1.health "unhealthy after start"; }
 [ $rc -eq 0 ] && ok S1.exit
 grep -q '"#chatta"' "$CHATTA_CHAT_HOME/state.json" 2>/dev/null && ok S1.project-channel || no S1.project-channel "project channel not joined"
-h=$(grep -c 'HELLO' "$CHATTA_CHAT_HOME/irc/127.0.0.1/#agents/out" 2>/dev/null)
-[ "${h:-0}" = 1 ] && ok S1.one-hello || no S1.one-hello "HELLO count=$h"
+echo "$out" | grep -q "connected as" && ok S1.one-hello || no S1.one-hello "did not take the fresh (HELLO-sending) path"
 
 echo "S2 idempotent rerun (client untouched, no second HELLO)"
-before=$(iipid)
+before=$(clientpid)
 out=$(cd "$SKILL" && sh "$QS" 2>&1); rc=$?
-after=$(iipid)
+after=$(clientpid)
 [ $rc -eq 0 ] && ok S2.exit || no S2.exit "rc=$rc: $out"
 [ -n "$before" ] && [ "$before" = "$after" ] && ok S2.same-client || no S2.same-client "managed client pid $before -> $after"
 echo "$out" | grep -q reusing && ok S2.reuse-path || no S2.reuse-path "did not take the reuse branch"
-h=$(grep -c 'HELLO' "$CHATTA_CHAT_HOME/irc/127.0.0.1/#agents/out" 2>/dev/null)
-[ "${h:-0}" = 1 ] && ok S2.no-second-hello || no S2.no-second-hello "HELLO count=$h"
+echo "$out" | grep -q "connected as" && no S2.no-second-hello "took the fresh path again on a rerun" || ok S2.no-second-hello
 
 echo "S3 recover from a dead supervisor"
 pkill -f _supervise >/dev/null 2>&1; sleep 1
@@ -70,10 +70,10 @@ nohup ngircd --nodaemon --config "$conf" >>"$CHATTA_IRC_ADMIN_HOME/ngircd.log" 2
 for _ in $(seq 1 20); do server_up && break; sleep 0.25; done
 sleep 900 & FAKE=$!
 CHATTA_CHAT_TEST_OWNER_PID=$FAKE chatta chat session start peerowner 'another live session' >/dev/null 2>&1
-foreign=$(iipid)
+foreign=$(clientpid)
 out=$(cd "$SKILL" && sh "$QS" 2>&1); rc=$?
 [ $rc -eq 0 ] && ok S4.exit || no S4.exit "rc=$rc: $out"
-[ -n "$foreign" ] && [ "$foreign" = "$(iipid)" ] && ok S4.not-killed || no S4.not-killed "foreign ii $foreign -> $(iipid)"
+[ -n "$foreign" ] && [ "$foreign" = "$(clientpid)" ] && ok S4.not-killed || no S4.not-killed "foreign client $foreign -> $(clientpid)"
 kill $FAKE >/dev/null 2>&1
 
 echo "S5 custom port is rendered into the ngircd config"
@@ -114,11 +114,9 @@ nohup ngircd --nodaemon --config "$conf" >>"$CHATTA_IRC_ADMIN_HOME/ngircd.log" 2
 for _ in $(seq 1 20); do server_up && break; sleep 0.25; done
 sleep 900 & FAKE=$!
 CHATTA_CHAT_TEST_OWNER_PID=$FAKE chatta chat session start peerowner 'another live session' >/dev/null 2>&1
-pkill -9 -f _supervise >/dev/null 2>&1   # SIGKILL: no chance to take ii down with it
+pkill -9 -f "$BASE.*_supervise" >/dev/null 2>&1   # SIGKILL: the supervisor is the whole client, so this drops the connection outright
 sleep 1
-stray=$(pgrep -f "ii .*$BASE" | wc -l | tr -d ' ')
-[ "$stray" -ge 1 ] && ok S8.precondition || no S8.precondition "no stray ii was left behind"
-chatta chat session status >/dev/null 2>&1 && no S8.precondition2 "client is still healthy, scenario did not hold" || ok S8.precondition2
+chatta chat session status >/dev/null 2>&1 && no S8.precondition "client is still healthy, scenario did not hold" || ok S8.precondition
 out=$(cd "$SKILL" && sh "$QS" 2>&1); rc=$?
 [ $rc -eq 0 ] && ok S8.exit || no S8.exit "rc=$rc: $out"
 chatta chat session status >/dev/null 2>&1 && ok S8.health || no S8.health "still unhealthy after the takeover"
