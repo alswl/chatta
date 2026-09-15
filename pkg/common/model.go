@@ -4,7 +4,7 @@ package common
 
 import "time"
 
-const StateSchemaVersion = 1
+const StateSchemaVersion = 2
 
 type OwnerBinding struct {
 	PID              int    `json:"pid"`

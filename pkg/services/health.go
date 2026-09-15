@@ -5,6 +5,7 @@ package services
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/alswl/chatta/pkg/common"
@@ -74,7 +75,7 @@ func (m *ChatService) Health(deep bool) common.HealthReport {
 // irc/ conversation tree with no control.sock (FR-013).
 func preUpgradeMigrationMessage(home string, loadErr error) string {
 	const migration = "this client home predates the built-in chat transport — stop and restart the session: chatta chat session stop --force && chatta chat session start <nick>"
-	if loadErr != nil && !os.IsNotExist(loadErr) {
+	if loadErr != nil && strings.Contains(loadErr.Error(), "unsupported state schema version") {
 		return migration
 	}
 	if _, err := os.Stat(home + "/irc"); err == nil {

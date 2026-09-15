@@ -1,8 +1,10 @@
 package dal
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/alswl/chatta/pkg/common"
@@ -38,6 +40,26 @@ func TestMalformedStateRejected(t *testing.T) {
 		t.Fatal("malformed state accepted")
 	}
 }
+func TestPreUpgradeSchemaVersionRejectedNamingUpgrade(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "state.json")
+	s := testSession()
+	s.SchemaVersion = 1
+	b, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = LoadState(p)
+	if err == nil {
+		t.Fatal("schema_version:1 state was accepted after the v2 upgrade")
+	}
+	if !strings.Contains(err.Error(), "unsupported state schema version") {
+		t.Fatalf("error does not name the schema mismatch: %v", err)
+	}
+}
+
 func TestCursorPersistence(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "cursors.json")
 	c := common.MessageCursor{InvokerKey: "session-a", Offset: 42}
