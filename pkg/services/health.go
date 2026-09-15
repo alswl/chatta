@@ -42,7 +42,6 @@ func (m *ChatService) Health(deep bool) common.HealthReport {
 		return r
 	}
 	r.Connected = resp.Status.Connected
-	r.Registered = resp.Status.Registered
 	confirmed := map[string]bool{}
 	for _, c := range resp.Status.Channels {
 		confirmed[c] = true

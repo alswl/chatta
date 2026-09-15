@@ -37,9 +37,6 @@ func Listen(path string) (*Server, error) {
 	return &Server{ln: ln}, nil
 }
 
-// Addr returns the socket path.
-func (s *Server) Addr() string { return s.ln.Addr().String() }
-
 // Serve accepts connections and dispatches each request to handler until
 // ctx is cancelled, at which point it closes the listener and returns.
 func (s *Server) Serve(ctx context.Context, handler Handler) error {

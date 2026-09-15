@@ -36,7 +36,6 @@ type HealthReport struct {
 	Supervisor     bool   `json:"supervisor"`
 	JoinedChannels bool   `json:"joined_channels"`
 	Connected      bool   `json:"connected"`
-	Registered     bool   `json:"registered"`
 	ServerLink     bool   `json:"server_link"`
 	Membership     bool   `json:"membership"`
 	Failure        string `json:"failure,omitempty"`
