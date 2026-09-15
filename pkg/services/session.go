@@ -11,13 +11,14 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"strings"
+	"sync"
 	"syscall"
 	"time"
 
-	"github.com/alswl/chatta/integrations/ii"
 	"github.com/alswl/chatta/pkg/common"
+	"github.com/alswl/chatta/pkg/daemon"
 	"github.com/alswl/chatta/pkg/dal"
+	"github.com/alswl/chatta/pkg/dal/irc"
 )
 
 func (m *ChatService) Start(nick, role string, takeover bool) error {
@@ -42,9 +43,6 @@ func (m *ChatService) Start(nick, role string, takeover bool) error {
 			_ = dal.StopVerifiedSupervisor(old.SupervisorPID, old.SupervisorStartFingerprint)
 		}
 	}
-	if err := ii.ReapStray(m.Paths.Conversations); err != nil {
-		return fmt.Errorf("reap stale ii client: %w", err)
-	}
 
 	normalized := dal.NormalizeChannel(m.Channel)
 	session := common.ChatSession{
@@ -58,18 +56,16 @@ func (m *ChatService) Start(nick, role string, takeover bool) error {
 		return err
 	}
 	m.State = session
-	serverOut := filepath.Join(m.Paths.Conversations, session.Host, "out")
 	// A nick is not released the instant its previous client dies: the server
-	// holds it for a few seconds, and an ii that gets rejected does not
-	// re-register on its own. Reconnecting under one's own nick therefore
-	// needs a fresh client, not a longer wait -- so a collision is retried
+	// holds it for a few seconds. Reconnecting under one's own nick therefore
+	// needs a fresh attempt, not a longer wait -- so a collision is retried
 	// with a new supervisor rather than reported straight to the caller.
 	var lastErr error
 	for attempt := 0; attempt < nickAttempts; attempt++ {
 		if attempt > 0 {
 			time.Sleep(nickRetryDelay)
 		}
-		err := m.startOnce(&session, serverOut, nick)
+		err := m.startOnce(&session, nick)
 		if err == nil {
 			return nil
 		}
@@ -98,9 +94,8 @@ func (e nickTakenError) Error() string {
 	return fmt.Sprintf("the nick %q is already in use on this server; choose a distinct nick if it belongs to another agent", e.nick)
 }
 
-func (m *ChatService) startOnce(base *common.ChatSession, serverOut, nick string) error {
+func (m *ChatService) startOnce(base *common.ChatSession, nick string) error {
 	session := *base
-	serverOffset := fileSize(serverOut)
 	pid, err := m.spawnSupervisor()
 	if err != nil {
 		return err
@@ -117,11 +112,12 @@ func (m *ChatService) startOnce(base *common.ChatSession, serverOut, nick string
 	m.State = session
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		if nicknameTaken(serverOut, serverOffset, nick) {
+		resp, reqErr := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
+		if reqErr == nil && !resp.OK && resp.Code == daemon.CodeNickInUse {
 			_ = dal.StopVerifiedSupervisor(pid, session.SupervisorStartFingerprint)
 			return nickTakenError{nick: nick}
 		}
-		if report := m.Health(true); report.Owner && report.Supervisor && report.ClientReader && report.ServerLink && report.Membership {
+		if report := m.Health(true); report.Owner && report.Supervisor && report.JoinedChannels && report.ServerLink && report.Membership {
 			return nil
 		}
 		time.Sleep(250 * time.Millisecond)
@@ -138,7 +134,7 @@ func (m *ChatService) spawnSupervisor() (int, error) {
 	if executable == "" {
 		executable = os.Args[0]
 	}
-	cmd := exec.Command(executable, "chat", "--home", m.Home, "--host", m.Host, "--port", fmt.Sprint(m.Port), "--channel", m.Channel, "--ii", m.II, "_supervise")
+	cmd := exec.Command(executable, "chat", "--home", m.Home, "--host", m.Host, "--port", fmt.Sprint(m.Port), "--channel", m.Channel, "_supervise")
 	cmd.Stdout, cmd.Stderr = mustOpenLog(m.Paths.Log)
 	cmd.Stdin = nil
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -148,17 +144,7 @@ func (m *ChatService) spawnSupervisor() (int, error) {
 	return cmd.Process.Pid, nil
 }
 
-func nicknameTaken(path string, offset int64, nick string) bool {
-	lines, _, _ := dal.Tail(path, offset)
-	for _, line := range lines {
-		if strings.Contains(line, nick+" Nickname already in use") || (strings.Contains(line, nick) && strings.Contains(strings.ToLower(line), "nickname already in use")) {
-			return true
-		}
-	}
-	return false
-}
-
-// mustOpenLog opens the supervisor's ii log for the outer supervisor
+// mustOpenLog opens the supervisor's own log for the outer supervisor
 // process's own stdout/stderr. If it cannot be opened, it says so on
 // stderr instead of silently discarding output that would otherwise
 // vanish once the process detaches from its launching terminal.
@@ -172,11 +158,11 @@ func mustOpenLog(path string) (*os.File, *os.File) {
 }
 
 // openSupervisorLog opens a structured logger for the supervisor's own
-// lifecycle events (start, ii exit, owner death, shutdown) at the same
-// path used for ii's raw output. If that path can't be opened, it falls
-// back to a discoverable temp file rather than a detached process's stderr,
-// which is discarded — logging the fallback itself so the failure is not
-// silent.
+// lifecycle events (start, connection loss, owner death, shutdown) at the
+// same path used for its own stdout/stderr. If that path can't be opened,
+// it falls back to a discoverable temp file rather than a detached
+// process's stderr, which is discarded -- logging the fallback itself so
+// the failure is not silent.
 func openSupervisorLog(path string) (*slog.Logger, *os.File) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err == nil {
@@ -191,6 +177,160 @@ func openSupervisorLog(path string) (*slog.Logger, *os.File) {
 	return slog.New(slog.NewTextHandler(os.Stderr, nil)), os.Stderr
 }
 
+// controlHandler serves the supervisor's control socket, dispatching each
+// request onto the currently held irc.Conn (nil while disconnected).
+type controlHandler struct {
+	m   *ChatService
+	log *slog.Logger
+
+	mu      sync.Mutex
+	conn    *irc.Conn
+	failure error
+}
+
+func (h *controlHandler) setConn(c *irc.Conn) {
+	h.mu.Lock()
+	h.conn = c
+	if c != nil {
+		h.failure = nil
+	}
+	h.mu.Unlock()
+}
+
+func (h *controlHandler) setFailure(err error) {
+	h.mu.Lock()
+	h.conn = nil
+	h.failure = err
+	h.mu.Unlock()
+}
+
+func (h *controlHandler) getConn() *irc.Conn {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.conn
+}
+
+func (h *controlHandler) Handle(req daemon.ControlRequest) daemon.ControlResponse {
+	switch req.Op {
+	case "status":
+		return h.status()
+	case "join":
+		return h.join(req.Target)
+	case "part":
+		return h.part(req.Target, req.Reason)
+	case "names":
+		return h.names(req.Target)
+	case "privmsg":
+		return h.privmsg(req.Target, req.Text)
+	case "quit":
+		if conn := h.getConn(); conn != nil {
+			_ = conn.Quit(req.Reason)
+		}
+		return daemon.ControlResponse{OK: true}
+	default:
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: "unknown op: " + req.Op}
+	}
+}
+
+func (h *controlHandler) status() daemon.ControlResponse {
+	conn := h.getConn()
+	if conn == nil {
+		h.mu.Lock()
+		failure := h.failure
+		h.mu.Unlock()
+		code, errMsg := daemon.CodeNotConnected, "not connected"
+		if failure != nil {
+			errMsg = failure.Error()
+			var typed *irc.TypedError
+			if errors.As(failure, &typed) && typed.Code == irc.CodeNickInUse {
+				code = daemon.CodeNickInUse
+			}
+		}
+		return daemon.ControlResponse{OK: false, Code: code, Error: errMsg}
+	}
+	return daemon.ControlResponse{OK: true, Status: &common.TransportStatus{
+		Connected: true, Registered: conn.Registered(), Nick: conn.Nick(),
+		Channels: conn.Channels(), LastPong: conn.LastPong(),
+	}}
+}
+
+func (h *controlHandler) join(target string) daemon.ControlResponse {
+	conn := h.getConn()
+	if conn == nil {
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeNotConnected, Error: "not connected"}
+	}
+	if err := conn.Join(target, 10*time.Second); err != nil {
+		return mapTransportErr(err, daemon.CodeJoinFailed)
+	}
+	return daemon.ControlResponse{OK: true}
+}
+
+func (h *controlHandler) part(target, reason string) daemon.ControlResponse {
+	conn := h.getConn()
+	if conn == nil {
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeNotConnected, Error: "not connected"}
+	}
+	if err := conn.Part(target, reason, 10*time.Second); err != nil {
+		return mapTransportErr(err, daemon.CodeJoinFailed)
+	}
+	return daemon.ControlResponse{OK: true}
+}
+
+func (h *controlHandler) names(target string) daemon.ControlResponse {
+	conn := h.getConn()
+	if conn == nil {
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeNotConnected, Error: "not connected"}
+	}
+	members, err := conn.Names(target, 10*time.Second)
+	if err != nil {
+		return mapTransportErr(err, daemon.CodeJoinFailed)
+	}
+	return daemon.ControlResponse{OK: true, Members: members}
+}
+
+func (h *controlHandler) privmsg(target, text string) daemon.ControlResponse {
+	conn := h.getConn()
+	if conn == nil {
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeNotConnected, Error: "not connected"}
+	}
+	if isChannel(target) {
+		if err := conn.Privmsg(target, text); err != nil {
+			return daemon.ControlResponse{OK: false, Code: daemon.CodeNotConnected, Error: err.Error()}
+		}
+		return daemon.ControlResponse{OK: true}
+	}
+	if err := conn.PrivmsgDM(target, text, time.Second); err != nil {
+		return mapTransportErr(err, daemon.CodeNoSuchNick)
+	}
+	return daemon.ControlResponse{OK: true}
+}
+
+func isChannel(target string) bool { return len(target) > 0 && target[0] == '#' }
+
+func mapTransportErr(err error, fallback string) daemon.ControlResponse {
+	var typed *irc.TypedError
+	if errors.As(err, &typed) {
+		code := fallback
+		switch typed.Code {
+		case irc.CodeNotRegistered:
+			code = daemon.CodeNotRegistered
+		case irc.CodeTimeout:
+			code = daemon.CodeTimeout
+		case irc.CodeNoSuchNick:
+			code = daemon.CodeNoSuchNick
+		case irc.CodeJoinFailed:
+			code = daemon.CodeJoinFailed
+		case irc.CodeNickInUse:
+			code = daemon.CodeNickInUse
+		}
+		return daemon.ControlResponse{OK: false, Code: code, Error: typed.Msg}
+	}
+	return daemon.ControlResponse{OK: false, Code: fallback, Error: err.Error()}
+}
+
+// supervise is the resident process's run loop: it owns the IRC connection
+// and the control socket for as long as the owning agent session is alive,
+// reconnecting and rejoining channels whenever the connection drops.
 func (m *ChatService) supervise() error {
 	lock, err := dal.LockHome(m.Paths.Lock)
 	if err != nil {
@@ -201,6 +341,21 @@ func (m *ChatService) supervise() error {
 	defer func() { _ = logFile.Close() }()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+
+	srv, err := daemon.Listen(m.Paths.ControlSock)
+	if err != nil {
+		log.Error("failed to listen on control socket", "error", err)
+		return err
+	}
+	defer func() { _ = srv.Close() }()
+
+	h := &controlHandler{m: m, log: log}
+	go func() {
+		if err := srv.Serve(ctx, h); err != nil {
+			log.Error("control socket server exited", "error", err)
+		}
+	}()
+
 	log.Info("supervisor starting", "home", m.Home, "nick", m.State.Nick)
 	for {
 		st, err := dal.LoadState(m.StatePath)
@@ -212,50 +367,63 @@ func (m *ChatService) supervise() error {
 			log.Info("owner has exited; stopping supervisor")
 			return nil
 		}
-		client := &ii.Client{Paths: m.Paths}
-		if err := client.Start(st, m.II); err != nil {
-			log.Error("failed to start ii", "error", err)
-			return err
-		}
-		for _, channel := range st.Channels {
-			if err := ii.WriteFIFO(filepath.Join(m.Paths.Conversations, st.Host, "in"), "/j "+channel.Name, 14); err != nil {
-				_ = client.Cmd.Process.Signal(syscall.SIGTERM)
-				_ = client.Close()
-				log.Error("failed to join channel after starting ii", "channel", channel.Name, "error", err)
-				return fmt.Errorf("join %s after starting ii: %w", channel.Name, err)
+
+		conn, err := irc.Dial(fmt.Sprintf("%s:%d", st.Host, st.Port), st.Nick, st.Nick, 10*time.Second)
+		if err != nil {
+			log.Warn("failed to connect", "error", err)
+			h.setFailure(err)
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-time.After(time.Second):
+				continue
 			}
 		}
-		done := make(chan error, 1)
-		go func() { done <- client.Cmd.Wait() }()
+		conn.OnMessage(func(kind, target, nick, text string) {
+			if err := dal.AppendMessage(m.Paths.Messages, common.StoredMessage{TS: time.Now().Unix(), Kind: kind, Target: target, Nick: nick, Text: text}); err != nil {
+				log.Error("failed to append message", "error", err)
+			}
+		})
+		disconnected := make(chan error, 1)
+		conn.OnDisconnect(func(err error) { disconnected <- err })
+		h.setConn(conn)
+
+		for _, channel := range st.Channels {
+			if err := conn.Join(channel.Name, 10*time.Second); err != nil {
+				log.Error("failed to join channel", "channel", channel.Name, "error", err)
+			}
+		}
+
 		ticker := time.NewTicker(time.Second)
-		terminated := false
 		running := true
-		stopCh := ctx.Done()
 		for running {
 			select {
-			case <-stopCh:
-				stopCh = nil
+			case <-ctx.Done():
 				log.Info("stop signal received")
-				terminated = true
-				_ = client.Cmd.Process.Signal(syscall.SIGTERM)
-			case waitErr := <-done:
+				_ = conn.Quit("leaving")
+				_ = conn.Close()
+				ticker.Stop()
+				h.setConn(nil)
+				return nil
+			case waitErr := <-disconnected:
 				if waitErr != nil {
-					log.Warn("ii exited", "error", waitErr)
+					log.Warn("connection lost", "error", waitErr)
 				}
 				running = false
 			case <-ticker.C:
 				if !dal.ProcessAlive(st.Owner) {
 					log.Info("owner process ended; stopping supervisor")
-					terminated = true
-					_ = client.Cmd.Process.Signal(syscall.SIGTERM)
+					_ = conn.Quit("owner exited")
+					_ = conn.Close()
+					ticker.Stop()
+					h.setConn(nil)
+					return nil
 				}
 			}
 		}
 		ticker.Stop()
-		_ = client.Close()
-		if terminated || !dal.ProcessAlive(st.Owner) {
-			return nil
-		}
+		_ = conn.Close()
+		h.setConn(nil)
 		time.Sleep(time.Second)
 	}
 }

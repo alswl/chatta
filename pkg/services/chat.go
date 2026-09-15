@@ -17,12 +17,12 @@ import (
 )
 
 type ChatService struct {
-	Home, StatePath, Host, Channel, II string
-	Port                               int
-	Paths                              dal.Paths
-	State                              common.ChatSession
-	OwnerLookup                        func() (common.OwnerBinding, error)
-	Executable                         string
+	Home, StatePath, Host, Channel string
+	Port                           int
+	Paths                          dal.Paths
+	State                          common.ChatSession
+	OwnerLookup                    func() (common.OwnerBinding, error)
+	Executable                     string
 }
 
 func NewChatService(cfg config.ChatConfig) *ChatService {
@@ -50,7 +50,7 @@ func NewChatService(cfg config.ChatConfig) *ChatService {
 		home = dal.WorktreeHome("", filepath.Clean(root))
 	}
 	paths := dal.ResolvePaths(home)
-	return &ChatService{Home: home, StatePath: paths.State, Host: host, Port: port, Channel: channel, II: cfg.II, Paths: paths, OwnerLookup: dal.FindAgentOwner}
+	return &ChatService{Home: home, StatePath: paths.State, Host: host, Port: port, Channel: channel, Paths: paths, OwnerLookup: dal.FindAgentOwner}
 }
 
 func (s *ChatService) findOwner() (common.OwnerBinding, error) {

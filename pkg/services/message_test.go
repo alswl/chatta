@@ -3,9 +3,10 @@
 package services
 
 import (
-	"os"
 	"strings"
 	"testing"
+
+	"github.com/alswl/chatta/pkg/common"
 )
 
 func TestSplitUTF8PreservesTextAndLimit(t *testing.T) {
@@ -23,19 +24,16 @@ func TestSplitUTF8PreservesTextAndLimit(t *testing.T) {
 	}
 }
 
-func TestWaitForAbsentNickDetectsServerReply(t *testing.T) {
-	path := t.TempDir() + "/out"
-	if err := os.WriteFile(path, []byte("1700000000 <server> pola No such nick or channel name\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := waitForAbsentNick(path, 0, "pola"); err == nil {
-		t.Fatal("absent nick reply was ignored")
+func TestRenderMessageLabelsDirectMessages(t *testing.T) {
+	line := renderMessage(common.StoredMessage{TS: 1700000000, Kind: "direct", Target: "pola", Nick: "pola", Text: "[ASK] hello"})
+	if !strings.Contains(line, "(DM)") || !strings.Contains(line, "<pola>") {
+		t.Fatalf("unexpected rendering: %s", line)
 	}
 }
 
-func TestRenderLineLabelsDirectMessages(t *testing.T) {
-	line := renderLine("1700000000 <pola> [ASK] hello", "pola")
-	if !strings.Contains(line, "(DM)") || !strings.Contains(line, "<pola>") {
+func TestRenderMessageLabelsChannelMessages(t *testing.T) {
+	line := renderMessage(common.StoredMessage{TS: 1700000000, Kind: "channel", Target: "#agents", Nick: "pola", Text: "hi"})
+	if !strings.Contains(line, "(#agents)") || !strings.Contains(line, "<pola>") {
 		t.Fatalf("unexpected rendering: %s", line)
 	}
 }

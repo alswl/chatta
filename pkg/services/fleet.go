@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alswl/chatta/integrations/ii"
 	"github.com/alswl/chatta/pkg/common"
+	"github.com/alswl/chatta/pkg/daemon"
 	"github.com/alswl/chatta/pkg/dal"
 )
 
@@ -25,15 +25,11 @@ func (m *ChatService) Stop(force bool) error {
 			return fmt.Errorf("this client belongs to another live agent; use --force after confirmation")
 		}
 	}
-	server := filepath.Join(m.Paths.Conversations, st.Host)
-	_ = ii.WriteFIFO(filepath.Join(server, "in"), "/q leaving", 0)
+	_, _ = daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "quit", Reason: "leaving"})
 	if st.SupervisorPID > 0 {
 		if err := dal.StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint); err != nil {
 			return err
 		}
-	}
-	if err := ii.ReapStray(m.Paths.Conversations); err != nil {
-		return err
 	}
 	st.SupervisorPID = 0
 	st.SupervisorStartFingerprint = ""
@@ -57,18 +53,15 @@ func (m *ChatService) Survey() ([]common.ClientSurvey, error) {
 			supervisorState = "alive"
 		}
 		clientState := "down"
-		if ii.FIFOReader(filepath.Join(home, "irc", st.Host, st.HomeChannel.Name, "in")) {
+		paths := dal.ResolvePaths(home)
+		if resp, err := daemon.Request(paths.ControlSock, daemon.ControlRequest{Op: "status"}); err == nil && resp.OK && resp.Status != nil && resp.Status.Connected {
 			clientState = "alive"
-		}
-		iiPIDs, _ := ii.PIDs(filepath.Join(home, "irc"))
-		if clientState == "down" && len(iiPIDs) > 0 {
-			clientState = "stray"
 		}
 		eligibility := "live owner"
 		if ownerState != "alive" {
 			eligibility = "owner ended"
 		}
-		rows = append(rows, common.ClientSurvey{ClientHome: filepath.Dir(path), SessionSummary: st.Nick, OwnerState: ownerState, SupervisorState: supervisorState, ClientProcessState: clientState, IIProcessCount: len(iiPIDs), CleanupEligibility: eligibility})
+		rows = append(rows, common.ClientSurvey{ClientHome: filepath.Dir(path), SessionSummary: st.Nick, OwnerState: ownerState, SupervisorState: supervisorState, ClientProcessState: clientState, CleanupEligibility: eligibility})
 	}
 	return rows, nil
 }
@@ -122,34 +115,19 @@ func (m *ChatService) GC(dryRun, prune bool) (string, error) {
 	}
 	var b strings.Builder
 	for _, row := range rows {
-		_, _ = fmt.Fprintf(&b, "%s: %s, ii=%d (%s)\n", row.SessionSummary, row.ClientProcessState, row.IIProcessCount, row.CleanupEligibility)
-		orphanII := row.SupervisorState != "alive" && row.IIProcessCount > 0
+		_, _ = fmt.Fprintf(&b, "%s: %s (%s)\n", row.SessionSummary, row.ClientProcessState, row.CleanupEligibility)
 		if dryRun {
-			if orphanII {
-				b.WriteString("  would reap orphan ii process(es)\n")
-			}
+			continue
+		}
+		if row.CleanupEligibility == "live owner" {
 			continue
 		}
 		st, err := dal.LoadState(filepath.Join(row.ClientHome, "state.json"))
 		if err != nil {
 			continue
 		}
-		if orphanII {
-			if err := ii.ReapStray(filepath.Join(row.ClientHome, "irc")); err != nil {
-				return "", err
-			}
-			b.WriteString("  reaped orphan ii process(es)\n")
-		}
-		if row.CleanupEligibility == "live owner" {
-			continue
-		}
 		if st.SupervisorPID > 0 {
 			if err := dal.StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint); err != nil {
-				return "", err
-			}
-		}
-		if !orphanII {
-			if err := ii.ReapStray(filepath.Join(row.ClientHome, "irc")); err != nil {
 				return "", err
 			}
 		}

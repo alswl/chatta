@@ -27,13 +27,37 @@ func TestChatConfigurationPrecedence(t *testing.T) {
 	}
 }
 
-func TestChatTransportConfigurationIsLoaded(t *testing.T) {
-	t.Setenv("CHATTA_CHAT_II", "/custom/ii")
-	config, err := Load(Options{})
+func TestDeprecatedIISettingsAreAcceptedAndIgnored(t *testing.T) {
+	baseline, err := Load(Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.Chat.II != "/custom/ii" {
-		t.Fatalf("expected configured transport path, got %q", config.Chat.II)
+
+	t.Setenv("CHATTA_CHAT_II", "/custom/ii")
+	viaPrimaryEnv, err := Load(Options{})
+	if err != nil {
+		t.Fatalf("CHATTA_CHAT_II must be accepted without error: %v", err)
+	}
+	if viaPrimaryEnv.Chat != baseline.Chat {
+		t.Fatalf("CHATTA_CHAT_II must not affect resolved configuration: %+v", viaPrimaryEnv.Chat)
+	}
+	os.Unsetenv("CHATTA_CHAT_II")
+
+	t.Setenv("AGENT_CHAT_II", "/custom/ii")
+	viaLegacyEnv, err := Load(Options{})
+	if err != nil {
+		t.Fatalf("AGENT_CHAT_II must be accepted without error: %v", err)
+	}
+	if viaLegacyEnv.Chat != baseline.Chat {
+		t.Fatalf("AGENT_CHAT_II must not affect resolved configuration: %+v", viaLegacyEnv.Chat)
+	}
+	os.Unsetenv("AGENT_CHAT_II")
+
+	viaFlag, err := Load(Options{Chat: ChatConfig{II: "/custom/ii"}, ChatIISet: true})
+	if err != nil {
+		t.Fatalf("--ii must be accepted without error: %v", err)
+	}
+	if viaFlag.Chat != baseline.Chat {
+		t.Fatalf("--ii must not affect resolved configuration: %+v", viaFlag.Chat)
 	}
 }

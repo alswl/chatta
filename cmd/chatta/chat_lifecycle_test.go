@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -27,10 +26,10 @@ func TestChatCommandExposesLifecycleCommands(t *testing.T) {
 	}
 }
 
-func TestIIFlagIsAdvancedChattaTransportConfiguration(t *testing.T) {
+func TestIIFlagIsDeprecated(t *testing.T) {
 	flag := chatCmd.PersistentFlags().Lookup("ii")
-	if flag == nil || !strings.Contains(flag.Usage, "Chatta-managed") {
-		t.Fatalf("ii flag does not describe Chatta ownership: %#v", flag)
+	if flag == nil || flag.Deprecated == "" {
+		t.Fatalf("ii flag is not marked deprecated: %#v", flag)
 	}
 }
 

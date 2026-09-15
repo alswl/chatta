@@ -16,13 +16,10 @@ func TestHealthWithoutSessionNamesFailure(t *testing.T) {
 	}
 }
 
-func TestTimeReplyAcceptsFormattedAndRawIIRCLines(t *testing.T) {
-	for _, line := range []string{
-		"1700000000 agentchat.local Thursday August 27 2026",
-		"1700000000 :agentchat.local 391 misky agentchat.local :Thursday August 27 2026",
-	} {
-		if !timeReply.MatchString(line) {
-			t.Errorf("TIME reply was not recognized: %q", line)
-		}
+func TestHealthDeepFalseSkipsServerLinkCheckWithoutSession(t *testing.T) {
+	m := NewChatService(config.ChatConfig{Home: t.TempDir()})
+	r := m.Health(false)
+	if r.Failure == "" {
+		t.Fatalf("unexpected health report: %+v", r)
 	}
 }

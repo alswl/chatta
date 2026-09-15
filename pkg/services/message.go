@@ -5,12 +5,11 @@ package services
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/alswl/chatta/integrations/ii"
+	"github.com/alswl/chatta/pkg/common"
+	"github.com/alswl/chatta/pkg/daemon"
 	"github.com/alswl/chatta/pkg/dal"
 )
 
@@ -63,15 +62,14 @@ func (m *ChatService) Send(channel, text string) error {
 	if len(parts) == 0 {
 		return fmt.Errorf("message must contain non-whitespace text")
 	}
-	if !m.confirmMembership(st, target) {
-		return fmt.Errorf("server did not confirm membership in %s", target)
-	}
-	fifo := filepath.Join(m.Paths.Conversations, st.Host, target, "in")
 	for _, part := range parts {
-		if err := ii.WriteFIFO(fifo, part, 1); err != nil {
+		resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "privmsg", Target: target, Text: part})
+		if err != nil {
 			return fmt.Errorf("send: %w", err)
 		}
-		time.Sleep(200 * time.Millisecond)
+		if !resp.OK {
+			return fmt.Errorf("send: %s", resp.Error)
+		}
 	}
 	return nil
 }
@@ -88,49 +86,17 @@ func (m *ChatService) DM(nick, text string) error {
 	if len(parts) == 0 {
 		return fmt.Errorf("message must contain non-whitespace text")
 	}
-	server := filepath.Join(m.Paths.Conversations, st.Host)
-	query := filepath.Join(server, nick, "in")
-	serverOut := filepath.Join(server, "out")
-	offset := fileSize(serverOut)
-	firstUnsent := 0
-	if _, err := os.Stat(query); os.IsNotExist(err) {
-		if err := ii.WriteFIFO(filepath.Join(server, "in"), "/j "+nick+" "+parts[0], 1); err != nil {
+	for _, part := range parts {
+		resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "privmsg", Target: nick, Text: part})
+		if err != nil {
 			return err
 		}
-		firstUnsent = 1
-		deadline := time.Now().Add(5 * time.Second)
-		for time.Now().Before(deadline) {
-			if _, err := os.Stat(query); err == nil {
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-		if _, err := os.Stat(query); err != nil {
-			return fmt.Errorf("direct message target %q did not open query FIFO: %w", nick, err)
-		}
-	}
-	for _, part := range parts[firstUnsent:] {
-		if err := ii.WriteFIFO(query, part, 1); err != nil {
-			return err
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	if err := waitForAbsentNick(serverOut, offset, nick); err != nil {
-		return err
-	}
-	return nil
-}
-
-func waitForAbsentNick(path string, offset int64, nick string) error {
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		lines, _, _ := dal.Tail(path, offset)
-		for _, line := range lines {
-			if strings.Contains(line, nick) && strings.Contains(strings.ToLower(line), "no such nick") {
+		if !resp.OK {
+			if resp.Code == daemon.CodeNoSuchNick {
 				return fmt.Errorf("direct message target %q is absent", nick)
 			}
+			return fmt.Errorf("%s", resp.Error)
 		}
-		time.Sleep(100 * time.Millisecond)
 	}
 	return nil
 }
@@ -140,54 +106,34 @@ func (m *ChatService) Poll(replay bool) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	root := filepath.Join(m.Paths.Conversations, st.Host)
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil, err
-	}
 	cursorPath := dal.CursorPath(m.Home, dal.InvocationSessionID(st.SessionID))
 	cursor, _ := dal.LoadCursors(cursorPath)
 	if replay {
-		cursor.Offsets = map[string]int64{}
+		cursor.Offset = 0
 	}
-	var result []string
-	for _, entry := range entries {
-		if !entry.IsDir() {
+	msgs, next, err := dal.ReadMessages(m.Paths.Messages, cursor.Offset)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]string, 0, len(msgs))
+	for _, msg := range msgs {
+		if msg.Nick == st.Nick {
 			continue
 		}
-		name := entry.Name()
-		out := filepath.Join(root, name, "out")
-		lines, next, err := dal.Tail(out, cursor.Offsets[name])
-		if err != nil {
-			return nil, err
-		}
-		for _, line := range lines {
-			_, nick, _, ok := ii.ParseLine(line)
-			if ok && nick == st.Nick {
-				continue
-			}
-			result = append(result, renderLine(line, name))
-		}
-		cursor.Offsets[name] = next
+		result = append(result, renderMessage(msg))
 	}
+	cursor.Offset = next
 	cursor.InvokerKey = st.SessionID
 	return result, dal.SaveCursors(cursorPath, cursor)
 }
 
-func renderLine(line, source string) string {
-	ts, nick, text, ok := ii.ParseLine(line)
-	if !ok {
-		return line
-	}
-	stamp := time.Unix(ts, 0).Local().Format("2006-01-02 15:04:05")
-	if nick == "" {
-		return fmt.Sprintf("%s %s%s", stamp, source, text)
-	}
-	label := source
-	if !strings.HasPrefix(source, "#") {
+func renderMessage(msg common.StoredMessage) string {
+	stamp := time.Unix(msg.TS, 0).Local().Format("2006-01-02 15:04:05")
+	label := msg.Target
+	if msg.Kind == "direct" {
 		label = "DM"
 	}
-	return fmt.Sprintf("%s (%s) <%s> %s", stamp, label, nick, text)
+	return fmt.Sprintf("%s (%s) <%s> %s", stamp, label, msg.Nick, msg.Text)
 }
 
 // Watch streams incoming messages until ctx is cancelled, the owning
@@ -198,17 +144,7 @@ func (m *ChatService) Watch(ctx context.Context, emit func(string)) error {
 		return err
 	}
 	watchOwner, watchOwnerErr := m.findOwner()
-	root := filepath.Join(m.Paths.Conversations, st.Host)
-	offsets := map[string]int64{}
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			offsets[entry.Name()] = fileSize(filepath.Join(root, entry.Name(), "out"))
-		}
-	}
+	offset := fileSize(m.Paths.Messages)
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	check := time.NewTicker(30 * time.Second)
@@ -226,25 +162,17 @@ func (m *ChatService) Watch(ctx context.Context, emit func(string)) error {
 		if watchOwnerErr == nil && !dal.ProcessAlive(watchOwner) {
 			return nil
 		}
-		entries, err = os.ReadDir(root)
+		msgs, next, err := dal.ReadMessages(m.Paths.Messages, offset)
 		if err != nil {
 			return err
 		}
-		for _, entry := range entries {
-			if !entry.IsDir() {
+		for _, msg := range msgs {
+			if msg.Nick == st.Nick {
 				continue
 			}
-			name := entry.Name()
-			lines, next, _ := dal.Tail(filepath.Join(root, name, "out"), offsets[name])
-			for _, line := range lines {
-				_, nick, _, ok := ii.ParseLine(line)
-				if ok && nick == st.Nick {
-					continue
-				}
-				emit(renderLine(line, name))
-			}
-			offsets[name] = next
+			emit(renderMessage(msg))
 		}
+		offset = next
 	}
 }
 
@@ -267,36 +195,20 @@ func (m *ChatService) Who(channel string) ([]string, error) {
 	if !joined {
 		return nil, fmt.Errorf("not in %s — run: chatta chat join %s", target, target)
 	}
-	server := filepath.Join(m.Paths.Conversations, st.Host)
-	out := filepath.Join(server, "out")
-	offset := fileSize(out)
-	if err := ii.WriteFIFO(filepath.Join(server, "in"), "/NAMES "+target, 1); err != nil {
+	resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "names", Target: target})
+	if err != nil {
 		return nil, err
 	}
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		lines, _, _ := dal.Tail(out, offset)
-		for _, line := range lines {
-			name, names, ok := ii.ParseNames(line)
-			if !ok || name != target {
-				continue
-			}
-			result := make([]string, 0, len(names))
-			for _, n := range names {
-				n = strings.TrimLeft(n, "@+")
-				if n == st.Nick {
-					n += " (you)"
-				}
-				result = append(result, n)
-			}
-			for _, member := range names {
-				if strings.TrimLeft(member, "@+") == st.Nick {
-					return result, nil
-				}
-			}
-			return nil, fmt.Errorf("server did not confirm membership in %s", target)
-		}
-		time.Sleep(100 * time.Millisecond)
+	if !resp.OK {
+		return nil, fmt.Errorf("no NAMES reply — run: chatta chat health")
 	}
-	return nil, fmt.Errorf("no NAMES reply — run: chatta chat health")
+	result := make([]string, 0, len(resp.Members))
+	for _, n := range resp.Members {
+		trimmed := strings.TrimLeft(n, "@+")
+		if trimmed == st.Nick {
+			trimmed += " (you)"
+		}
+		result = append(result, trimmed)
+	}
+	return result, nil
 }

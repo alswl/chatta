@@ -4,12 +4,10 @@ package services
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/alswl/chatta/integrations/ii"
 	"github.com/alswl/chatta/pkg/common"
+	"github.com/alswl/chatta/pkg/daemon"
 	"github.com/alswl/chatta/pkg/dal"
 )
 
@@ -24,18 +22,15 @@ func (m *ChatService) Join(channel string) error {
 			return nil
 		}
 	}
-	if err := ii.WriteFIFO(filepath.Join(m.Paths.Conversations, st.Host, "in"), "/j "+target, 1); err != nil {
+	resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "join", Target: target})
+	if err != nil {
 		return err
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if m.confirmMembership(st, target) {
-			st.Channels = append(st.Channels, common.ChannelMembership{Name: target, Kind: "custom", JoinedAt: time.Now(), Confirmed: true})
-			return dal.SaveState(m.StatePath, st)
-		}
-		time.Sleep(250 * time.Millisecond)
+	if !resp.OK {
+		return fmt.Errorf("the server did not confirm membership in %s", target)
 	}
-	return fmt.Errorf("the server did not confirm membership in %s", target)
+	st.Channels = append(st.Channels, common.ChannelMembership{Name: target, Kind: "custom", JoinedAt: time.Now(), Confirmed: true})
+	return dal.SaveState(m.StatePath, st)
 }
 
 func (m *ChatService) Part(channel, reason string) error {
@@ -53,7 +48,7 @@ func (m *ChatService) Part(channel, reason string) error {
 			kept = append(kept, c)
 		}
 	}
-	if err := ii.WriteFIFO(filepath.Join(m.Paths.Conversations, st.Host, target, "in"), "/l "+strings.TrimSpace(reason), 1); err != nil {
+	if _, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "part", Target: target, Reason: reason}); err != nil {
 		return err
 	}
 	st.Channels = kept

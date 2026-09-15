@@ -35,7 +35,8 @@ type HealthReport struct {
 	Owner          bool   `json:"owner"`
 	Supervisor     bool   `json:"supervisor"`
 	JoinedChannels bool   `json:"joined_channels"`
-	ClientReader   bool   `json:"client_reader"`
+	Connected      bool   `json:"connected"`
+	Registered     bool   `json:"registered"`
 	ServerLink     bool   `json:"server_link"`
 	Membership     bool   `json:"membership"`
 	Failure        string `json:"failure,omitempty"`
@@ -55,7 +56,6 @@ type ClientSurvey struct {
 	OwnerState         string `json:"owner_state"`
 	SupervisorState    string `json:"supervisor_state"`
 	ClientProcessState string `json:"client_process_state"`
-	IIProcessCount     int    `json:"ii_process_count"`
 	CleanupEligibility string `json:"cleanup_eligibility"`
 }
 

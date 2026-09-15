@@ -202,6 +202,25 @@ func (c *Conn) Privmsg(target, text string) error {
 	return c.send(FormatLine("PRIVMSG", target, text))
 }
 
+// PrivmsgDM sends a direct message and waits up to timeout for the server
+// to reject it with a 401 (no such nick). If no rejection arrives within
+// the window, the message is assumed delivered.
+func (c *Conn) PrivmsgDM(target, text string, timeout time.Duration) error {
+	key := "privmsg:" + target
+	req := c.registerPending(key)
+	if err := c.Privmsg(target, text); err != nil {
+		c.resolvePending(key, err)
+		return err
+	}
+	select {
+	case <-req.done:
+		return req.err
+	case <-time.After(timeout):
+		c.resolvePending(key, nil)
+		return nil
+	}
+}
+
 // Quit sends QUIT.
 func (c *Conn) Quit(reason string) error {
 	return c.send(FormatLine("QUIT", reason))
@@ -240,16 +259,14 @@ func (c *Conn) wait(req *pendingRequest, timeout time.Duration) error {
 func (c *Conn) readLoop() {
 	scanner := bufio.NewScanner(c.conn)
 	scanner.Buffer(make([]byte, 0, 4096), 8192)
-	var err error
 	for scanner.Scan() {
-		line := scanner.Text()
-		msg, ok := ParseLine(line)
+		msg, ok := ParseLine(scanner.Text())
 		if !ok {
 			continue
 		}
 		c.handle(msg)
 	}
-	err = scanner.Err()
+	err := scanner.Err()
 	if c.onDisconnect != nil {
 		c.onDisconnect(err)
 	}
@@ -276,6 +293,12 @@ func (c *Conn) handle(msg Message) {
 		c.resolvePending("__register__", nil)
 	case ERR_NICKNAMEINUSE:
 		c.resolvePending("__register__", &TypedError{Code: CodeNickInUse, Msg: fmt.Sprintf("the nick %q is already in use on this server; choose a distinct nick if it belongs to another agent", attemptedNick(msg))})
+	case ERR_ERRONEUSNICKNAME:
+		reason := ""
+		if len(msg.Params) > 0 {
+			reason = msg.Params[len(msg.Params)-1]
+		}
+		c.resolvePending("__register__", &TypedError{Code: CodeNickInUse, Msg: fmt.Sprintf("the nick %q was rejected by the server: %s", attemptedNick(msg), reason)})
 	case "JOIN":
 		nick := Nick(msg.Prefix)
 		if nick != c.Nick() || len(msg.Params) == 0 {

@@ -24,7 +24,8 @@ func init() {
 	flags.StringVar(&chatHost, "host", "", "chat server host")
 	flags.IntVar(&chatPort, "port", 0, "chat server port")
 	flags.StringVar(&chatChannel, "channel", "", "home channel")
-	flags.StringVar(&chatII, "ii", "", "advanced: Chatta-managed ii transport executable path")
+	flags.StringVar(&chatII, "ii", "", "deprecated: ignored — chatta no longer shells out to ii")
+	_ = chatCmd.PersistentFlags().MarkDeprecated("ii", "chatta now speaks IRC in-process; this flag is ignored")
 	chatCmd.AddCommand(sessionCmd, channelCmd, messageCmd, inboxCmd, clientCmd)
 	chatCmd.AddCommand(startCmd, healthCmd, joinCmd, partCmd, sendCmd, dmCmd, pollCmd, watchCmd, whoCmd, stopCmd, clientsCmd, gcCmd, supervisorCmd)
 	rootCmd.AddCommand(chatCmd)
@@ -46,7 +47,7 @@ func startSession(cmd *cobra.Command, args []string) error {
 
 func checkHealth(cmd *cobra.Command, _ []string) error {
 	r := newChatService().Health(true)
-	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "owner=%t supervisor=%t channels=%t reader=%t server=%t membership=%t\n", r.Owner, r.Supervisor, r.JoinedChannels, r.ClientReader, r.ServerLink, r.Membership); err != nil {
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "owner=%t supervisor=%t channels=%t connected=%t server=%t membership=%t\n", r.Owner, r.Supervisor, r.JoinedChannels, r.Connected, r.ServerLink, r.Membership); err != nil {
 		return err
 	}
 	if r.Failure != "" {
@@ -113,7 +114,7 @@ func stopSession(cmd *cobra.Command, _ []string) error {
 func listClients(cmd *cobra.Command, _ []string) error {
 	rows, err := newChatService().Survey()
 	for _, row := range rows {
-		if _, writeErr := fmt.Fprintf(cmd.OutOrStdout(), "%s nick=%s owner=%s supervisor=%s ii=%s(%d) cleanup=%s\n", row.ClientHome, row.SessionSummary, row.OwnerState, row.SupervisorState, row.ClientProcessState, row.IIProcessCount, row.CleanupEligibility); writeErr != nil {
+		if _, writeErr := fmt.Fprintf(cmd.OutOrStdout(), "%s nick=%s owner=%s supervisor=%s client=%s cleanup=%s\n", row.ClientHome, row.SessionSummary, row.OwnerState, row.SupervisorState, row.ClientProcessState, row.CleanupEligibility); writeErr != nil {
 			return writeErr
 		}
 	}

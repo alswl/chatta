@@ -63,15 +63,16 @@ func Load(options Options) (Config, error) {
 		}
 	}
 
-	chat := ChatConfig{Home: v.GetString("chat.home"), Host: v.GetString("chat.host"), Port: v.GetInt("chat.port"), Channel: v.GetString("chat.channel"), II: v.GetString("chat.ii")}
+	chat := ChatConfig{Home: v.GetString("chat.home"), Host: v.GetString("chat.host"), Port: v.GetInt("chat.port"), Channel: v.GetString("chat.channel")}
+	iiSet := v.InConfig("chat.ii")
 	v.AutomaticEnv()
 	if options.VerboseSet {
 		v.Set("verbose", options.Verbose)
 	}
-	if err := applyLegacyChatEnvironment(&chat, v); err != nil {
+	if err := applyLegacyChatEnvironment(&chat, v, &iiSet); err != nil {
 		return Config{}, err
 	}
-	if err := applyChatEnvironment(&chat, "CHATTA_CHAT_"); err != nil {
+	if err := applyChatEnvironment(&chat, "CHATTA_CHAT_", &iiSet); err != nil {
 		return Config{}, err
 	}
 	if options.ChatHomeSet {
@@ -87,13 +88,16 @@ func Load(options Options) (Config, error) {
 		chat.Channel = options.Chat.Channel
 	}
 	if options.ChatIISet {
-		chat.II = options.Chat.II
+		iiSet = true
+	}
+	if iiSet {
+		_, _ = fmt.Fprintln(os.Stderr, "chatta: --ii / CHATTA_CHAT_II / AGENT_CHAT_II is deprecated and ignored — chatta now speaks IRC in-process")
 	}
 
 	return Config{Verbose: v.GetBool("verbose"), Chat: chat}, nil
 }
 
-func applyChatEnvironment(chat *ChatConfig, prefix string) error {
+func applyChatEnvironment(chat *ChatConfig, prefix string, iiSet *bool) error {
 	if value, ok := os.LookupEnv(prefix + "HOME"); ok && value != "" {
 		chat.Home = value
 	}
@@ -103,8 +107,8 @@ func applyChatEnvironment(chat *ChatConfig, prefix string) error {
 	if value, ok := os.LookupEnv(prefix + "CHANNEL"); ok && value != "" {
 		chat.Channel = value
 	}
-	if value, ok := os.LookupEnv(prefix + "II"); ok && value != "" {
-		chat.II = value
+	if _, ok := os.LookupEnv(prefix + "II"); ok {
+		*iiSet = true
 	}
 	if value, ok := os.LookupEnv(prefix + "PORT"); ok && value != "" {
 		port, err := strconv.Atoi(value)
@@ -116,7 +120,7 @@ func applyChatEnvironment(chat *ChatConfig, prefix string) error {
 	return nil
 }
 
-func applyLegacyChatEnvironment(chat *ChatConfig, v *viper.Viper) error {
+func applyLegacyChatEnvironment(chat *ChatConfig, v *viper.Viper, iiSet *bool) error {
 	if value, ok := os.LookupEnv("AGENT_CHAT_HOME"); ok && value != "" && !v.InConfig("chat.home") {
 		chat.Home = value
 	}
@@ -126,8 +130,8 @@ func applyLegacyChatEnvironment(chat *ChatConfig, v *viper.Viper) error {
 	if value, ok := os.LookupEnv("AGENT_CHAT_CHANNEL"); ok && value != "" && !v.InConfig("chat.channel") {
 		chat.Channel = value
 	}
-	if value, ok := os.LookupEnv("AGENT_CHAT_II"); ok && value != "" && !v.InConfig("chat.ii") {
-		chat.II = value
+	if _, ok := os.LookupEnv("AGENT_CHAT_II"); ok && !v.InConfig("chat.ii") {
+		*iiSet = true
 	}
 	if value, ok := os.LookupEnv("AGENT_CHAT_PORT"); ok && value != "" && !v.InConfig("chat.port") {
 		port, err := strconv.Atoi(value)
