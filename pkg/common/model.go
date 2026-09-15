@@ -46,8 +46,8 @@ type Conversation struct {
 	TranscriptPath string `json:"transcript_path"`
 }
 type MessageCursor struct {
-	InvokerKey string           `json:"invoker_key"`
-	Offsets    map[string]int64 `json:"offsets"`
+	InvokerKey string `json:"invoker_key"`
+	Offset     int64  `json:"offset"`
 }
 type ClientSurvey struct {
 	ClientHome         string `json:"client_home"`
@@ -57,4 +57,25 @@ type ClientSurvey struct {
 	ClientProcessState string `json:"client_process_state"`
 	IIProcessCount     int    `json:"ii_process_count"`
 	CleanupEligibility string `json:"cleanup_eligibility"`
+}
+
+// StoredMessage is one line of messages.jsonl: a received PRIVMSG the
+// supervisor has recorded.
+type StoredMessage struct {
+	TS     int64  `json:"ts"`
+	Kind   string `json:"kind"`
+	Target string `json:"target"`
+	Nick   string `json:"nick"`
+	Text   string `json:"text"`
+}
+
+// TransportStatus reports the supervisor's live IRC connection state, as
+// returned by the control socket's "status" op.
+type TransportStatus struct {
+	Connected  bool     `json:"connected"`
+	Registered bool     `json:"registered"`
+	Nick       string   `json:"nick"`
+	Channels   []string `json:"channels"`
+	LastPong   int64    `json:"last_pong"`
+	Failure    string   `json:"failure,omitempty"`
 }

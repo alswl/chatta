@@ -71,21 +71,15 @@ func SaveState(path string, s common.ChatSession) error {
 func LoadCursors(path string) (common.MessageCursor, error) {
 	b, e := os.ReadFile(path)
 	if e != nil {
-		return common.MessageCursor{Offsets: map[string]int64{}}, e
+		return common.MessageCursor{}, e
 	}
 	var c common.MessageCursor
 	if e = json.Unmarshal(b, &c); e != nil {
-		return common.MessageCursor{Offsets: map[string]int64{}}, fmt.Errorf("malformed cursors: %w", e)
-	}
-	if c.Offsets == nil {
-		c.Offsets = map[string]int64{}
+		return common.MessageCursor{}, fmt.Errorf("malformed cursors: %w", e)
 	}
 	return c, nil
 }
 func SaveCursors(path string, c common.MessageCursor) error {
-	if c.Offsets == nil {
-		c.Offsets = map[string]int64{}
-	}
 	b, e := json.MarshalIndent(c, "", "  ")
 	if e != nil {
 		return e

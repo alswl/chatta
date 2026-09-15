@@ -40,12 +40,12 @@ func TestMalformedStateRejected(t *testing.T) {
 }
 func TestCursorPersistence(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "cursors.json")
-	c := common.MessageCursor{InvokerKey: "session-a", Offsets: map[string]int64{"#lobby": 42}}
+	c := common.MessageCursor{InvokerKey: "session-a", Offset: 42}
 	if e := SaveCursors(p, c); e != nil {
 		t.Fatal(e)
 	}
 	got, e := LoadCursors(p)
-	if e != nil || got.Offsets["#lobby"] != 42 {
+	if e != nil || got.Offset != 42 {
 		t.Fatalf("%+v %v", got, e)
 	}
 }
