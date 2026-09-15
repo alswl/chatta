@@ -31,7 +31,6 @@ func ParseLine(line string) (Message, bool) {
 		msg.Prefix = line[1:sp]
 		line = line[sp+1:]
 	}
-	// Split off the trailing parameter (" :...") first, if present.
 	rest := line
 	if idx := strings.Index(rest, " :"); idx >= 0 {
 		trailing := rest[idx+2:]

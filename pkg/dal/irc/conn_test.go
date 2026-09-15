@@ -170,11 +170,9 @@ func TestConnPingPong(t *testing.T) {
 	}
 }
 
-// writeToConn simulates the server sending a line to the client by writing
-// directly on the connection the client dialed with, via its handle method
-// through the read loop path is not directly testable from outside, so this
-// test drives handle() indirectly by writing on a raw connection to the
-// scripted server which never sees it. Instead, exercise Conn.handle directly.
+// writeToConn simulates the server sending a line to the client. The
+// unexported read loop isn't reachable from a scripted server connection in
+// these tests, so this calls Conn.handle directly instead.
 func writeToConn(c *Conn, line string) error {
 	msg, ok := ParseLine(line)
 	if !ok {
