@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package managers
+package services
 
 import (
 	"context"
@@ -40,7 +40,7 @@ func splitUTF8(text string, limit int) []string {
 	return out
 }
 
-func (m *Manager) Send(channel, text string) error {
+func (m *ChatService) Send(channel, text string) error {
 	st, err := m.Ensure()
 	if err != nil {
 		return err
@@ -76,7 +76,7 @@ func (m *Manager) Send(channel, text string) error {
 	return nil
 }
 
-func (m *Manager) DM(nick, text string) error {
+func (m *ChatService) DM(nick, text string) error {
 	st, err := m.Ensure()
 	if err != nil {
 		return err
@@ -135,7 +135,7 @@ func waitForAbsentNick(path string, offset int64, nick string) error {
 	return nil
 }
 
-func (m *Manager) Poll(replay bool) ([]string, error) {
+func (m *ChatService) Poll(replay bool) ([]string, error) {
 	st, err := m.Ensure()
 	if err != nil {
 		return nil, err
@@ -192,7 +192,7 @@ func renderLine(line, source string) string {
 
 // Watch streams incoming messages until ctx is cancelled, the owning
 // process exits, or the client cannot be recovered.
-func (m *Manager) Watch(ctx context.Context, emit func(string)) error {
+func (m *ChatService) Watch(ctx context.Context, emit func(string)) error {
 	st, err := m.Ensure()
 	if err != nil {
 		return err
@@ -248,7 +248,7 @@ func (m *Manager) Watch(ctx context.Context, emit func(string)) error {
 	}
 }
 
-func (m *Manager) Who(channel string) ([]string, error) {
+func (m *ChatService) Who(channel string) ([]string, error) {
 	st, err := m.Ensure()
 	if err != nil {
 		return nil, err

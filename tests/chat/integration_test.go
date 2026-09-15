@@ -16,7 +16,7 @@ import (
 	"github.com/alswl/chatta/pkg/common"
 	"github.com/alswl/chatta/pkg/config"
 	"github.com/alswl/chatta/pkg/dal"
-	"github.com/alswl/chatta/pkg/managers"
+	"github.com/alswl/chatta/pkg/services"
 )
 
 func TestLocalDaemonLifecycleAndMessaging(t *testing.T) {
@@ -31,8 +31,8 @@ func TestLocalDaemonLifecycleAndMessaging(t *testing.T) {
 	t.Cleanup(func() { stopCommand(server) })
 	binary := buildChatta(t)
 	owner := common.OwnerBinding{PID: os.Getpid(), StartFingerprint: dal.ProcessStart(os.Getpid()), Runtime: "test"}
-	newManager := func(home, nick string) *managers.Manager {
-		m := managers.NewManager(config.ChatConfig{Home: home, Host: "127.0.0.1", Port: port, Channel: "#agents"})
+	newManager := func(home, nick string) *services.ChatService {
+		m := services.NewChatService(config.ChatConfig{Home: home, Host: "127.0.0.1", Port: port, Channel: "#agents"})
 		m.Executable = binary
 		m.OwnerLookup = func() (common.OwnerBinding, error) { return owner, nil }
 		if err := m.Start(nick, "smoke", false); err != nil {
@@ -64,7 +64,7 @@ func TestLocalDaemonLifecycleAndMessaging(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = ownerProcess.Process.Kill(); _ = ownerProcess.Wait() })
 	deadOwner := common.OwnerBinding{PID: ownerProcess.Process.Pid, StartFingerprint: dal.ProcessStart(ownerProcess.Process.Pid), Runtime: "test"}
-	third := managers.NewManager(config.ChatConfig{Home: filepath.Join(t.TempDir(), "third"), Host: "127.0.0.1", Port: port, Channel: "#agents"})
+	third := services.NewChatService(config.ChatConfig{Home: filepath.Join(t.TempDir(), "third"), Host: "127.0.0.1", Port: port, Channel: "#agents"})
 	third.Executable = binary
 	third.OwnerLookup = func() (common.OwnerBinding, error) { return deadOwner, nil }
 	if err := third.Start("smoke3", "owner-death", false); err != nil {
@@ -85,7 +85,7 @@ func TestLocalDaemonLifecycleAndMessaging(t *testing.T) {
 	t.Fatal("owner death was not observed")
 }
 
-func waitForMessage(t *testing.T, m *managers.Manager, want string) {
+func waitForMessage(t *testing.T, m *services.ChatService, want string) {
 	t.Helper()
 	deadline := time.Now().Add(8 * time.Second)
 	var seen []string

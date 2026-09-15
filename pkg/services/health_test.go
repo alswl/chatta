@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package managers
+package services
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestHealthWithoutSessionNamesFailure(t *testing.T) {
-	m := NewManager(config.ChatConfig{Home: t.TempDir()})
+	m := NewChatService(config.ChatConfig{Home: t.TempDir()})
 	r := m.Health(true)
 	if r.Failure == "" || r.Owner || r.Supervisor {
 		t.Fatalf("unexpected health report: %+v", r)

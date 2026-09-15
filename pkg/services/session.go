@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package managers
+package services
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"github.com/alswl/chatta/pkg/dal"
 )
 
-func (m *Manager) Start(nick, role string, takeover bool) error {
+func (m *ChatService) Start(nick, role string, takeover bool) error {
 	owner, err := m.findOwner()
 	if err != nil {
 		return err
@@ -98,7 +98,7 @@ func (e nickTakenError) Error() string {
 	return fmt.Sprintf("the nick %q is already in use on this server; choose a distinct nick if it belongs to another agent", e.nick)
 }
 
-func (m *Manager) startOnce(base *common.ChatSession, serverOut, nick string) error {
+func (m *ChatService) startOnce(base *common.ChatSession, serverOut, nick string) error {
 	session := *base
 	serverOffset := fileSize(serverOut)
 	pid, err := m.spawnSupervisor()
@@ -130,7 +130,7 @@ func (m *Manager) startOnce(base *common.ChatSession, serverOut, nick string) er
 	return fmt.Errorf("chat client did not become ready; inspect %s", m.Paths.Log)
 }
 
-func (m *Manager) spawnSupervisor() (int, error) {
+func (m *ChatService) spawnSupervisor() (int, error) {
 	if err := os.MkdirAll(m.Paths.Home, 0700); err != nil {
 		return 0, err
 	}
@@ -191,7 +191,7 @@ func openSupervisorLog(path string) (*slog.Logger, *os.File) {
 	return slog.New(slog.NewTextHandler(os.Stderr, nil)), os.Stderr
 }
 
-func (m *Manager) supervise() error {
+func (m *ChatService) supervise() error {
 	lock, err := dal.LockHome(m.Paths.Lock)
 	if err != nil {
 		return fmt.Errorf("another supervisor owns this client: %w", err)
@@ -261,4 +261,4 @@ func (m *Manager) supervise() error {
 }
 
 // RunSupervisor is called by the hidden CLI command.
-func (m *Manager) RunSupervisor() error { return m.supervise() }
+func (m *ChatService) RunSupervisor() error { return m.supervise() }

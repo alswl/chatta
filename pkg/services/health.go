@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package managers
+package services
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ import (
 
 var timeReply = regexp.MustCompile(`^\d+ (?:\S+ (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) |:\S+ 391 \S+ \S+ :(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) )`)
 
-func (m *Manager) Health(deep bool) common.HealthReport {
+func (m *ChatService) Health(deep bool) common.HealthReport {
 	st := m.State
 	if loaded, err := dal.LoadState(m.StatePath); err == nil {
 		st = loaded
@@ -85,7 +85,7 @@ func (m *Manager) Health(deep bool) common.HealthReport {
 	return r
 }
 
-func (m *Manager) confirmMembership(st common.ChatSession, target string) bool {
+func (m *ChatService) confirmMembership(st common.ChatSession, target string) bool {
 	server := filepath.Join(m.Paths.Conversations, st.Host)
 	out := filepath.Join(server, "out")
 	offset := fileSize(out)
@@ -119,7 +119,7 @@ func fileSize(path string) int64 {
 	return info.Size()
 }
 
-func (m *Manager) Ensure() (common.ChatSession, error) {
+func (m *ChatService) Ensure() (common.ChatSession, error) {
 	st, err := dal.LoadState(m.StatePath)
 	if err != nil {
 		return common.ChatSession{}, fmt.Errorf("no session — run: chatta chat start <nick> [role]")
@@ -161,7 +161,7 @@ func (m *Manager) Ensure() (common.ChatSession, error) {
 	return st, fmt.Errorf("chat client recovery timed out")
 }
 
-func (m *Manager) confirmRememberedMembership(st common.ChatSession) bool {
+func (m *ChatService) confirmRememberedMembership(st common.ChatSession) bool {
 	for _, channel := range st.Channels {
 		if !m.confirmMembership(st, channel.Name) {
 			return false

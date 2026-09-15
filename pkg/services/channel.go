@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package managers
+package services
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 	"github.com/alswl/chatta/pkg/dal"
 )
 
-func (m *Manager) Join(channel string) error {
+func (m *ChatService) Join(channel string) error {
 	st, err := m.Ensure()
 	if err != nil {
 		return err
@@ -38,7 +38,7 @@ func (m *Manager) Join(channel string) error {
 	return fmt.Errorf("the server did not confirm membership in %s", target)
 }
 
-func (m *Manager) Part(channel, reason string) error {
+func (m *ChatService) Part(channel, reason string) error {
 	st, err := m.Ensure()
 	if err != nil {
 		return err

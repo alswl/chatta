@@ -37,7 +37,7 @@ func startSession(cmd *cobra.Command, args []string) error {
 	if len(args) == 2 {
 		role = args[1]
 	}
-	if err := newChatService().StartSession(args[0], role, mustBool(cmd, "takeover")); err != nil {
+	if err := newChatService().Start(args[0], role, mustBool(cmd, "takeover")); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "chat session started")
@@ -45,7 +45,7 @@ func startSession(cmd *cobra.Command, args []string) error {
 }
 
 func checkHealth(cmd *cobra.Command, _ []string) error {
-	r := newChatService().SessionHealth(true)
+	r := newChatService().Health(true)
 	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "owner=%t supervisor=%t channels=%t reader=%t server=%t membership=%t\n", r.Owner, r.Supervisor, r.JoinedChannels, r.ClientReader, r.ServerLink, r.Membership); err != nil {
 		return err
 	}
@@ -55,28 +55,28 @@ func checkHealth(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func joinChannel(_ *cobra.Command, args []string) error { return newChatService().JoinChannel(args[0]) }
+func joinChannel(_ *cobra.Command, args []string) error { return newChatService().Join(args[0]) }
 
 func leaveChannel(_ *cobra.Command, args []string) error {
 	reason := "done here"
 	if len(args) == 2 {
 		reason = args[1]
 	}
-	return newChatService().LeaveChannel(args[0], reason)
+	return newChatService().Part(args[0], reason)
 }
 
 func sendMessage(cmd *cobra.Command, args []string) error {
 	channel, _ := cmd.Flags().GetString("channel")
-	return newChatService().SendMessage(channel, args[0])
+	return newChatService().Send(channel, args[0])
 }
 
 func sendDirectMessage(_ *cobra.Command, args []string) error {
-	return newChatService().SendDirectMessage(args[0], args[1])
+	return newChatService().DM(args[0], args[1])
 }
 
 func readInbox(cmd *cobra.Command, _ []string) error {
 	all, _ := cmd.Flags().GetBool("all")
-	lines, err := newChatService().ReadInbox(all)
+	lines, err := newChatService().Poll(all)
 	for _, line := range lines {
 		if _, writeErr := fmt.Fprintln(cmd.OutOrStdout(), line); writeErr != nil {
 			return writeErr
@@ -86,7 +86,7 @@ func readInbox(cmd *cobra.Command, _ []string) error {
 }
 
 func watchInbox(cmd *cobra.Command, _ []string) error {
-	return newChatService().WatchInbox(cmd.Context(), func(line string) {
+	return newChatService().Watch(cmd.Context(), func(line string) {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), line)
 	})
 }
@@ -96,7 +96,7 @@ func channelMembers(cmd *cobra.Command, args []string) error {
 	if len(args) == 1 {
 		target = args[0]
 	}
-	lines, err := newChatService().ChannelMembers(target)
+	lines, err := newChatService().Who(target)
 	for _, line := range lines {
 		if _, writeErr := fmt.Fprintln(cmd.OutOrStdout(), line); writeErr != nil {
 			return writeErr
@@ -107,11 +107,11 @@ func channelMembers(cmd *cobra.Command, args []string) error {
 
 func stopSession(cmd *cobra.Command, _ []string) error {
 	force, _ := cmd.Flags().GetBool("force")
-	return newChatService().StopSession(force)
+	return newChatService().Stop(force)
 }
 
 func listClients(cmd *cobra.Command, _ []string) error {
-	rows, err := newChatService().ListClients()
+	rows, err := newChatService().Survey()
 	for _, row := range rows {
 		if _, writeErr := fmt.Fprintf(cmd.OutOrStdout(), "%s nick=%s owner=%s supervisor=%s ii=%s(%d) cleanup=%s\n", row.ClientHome, row.SessionSummary, row.OwnerState, row.SupervisorState, row.ClientProcessState, row.IIProcessCount, row.CleanupEligibility); writeErr != nil {
 			return writeErr
@@ -123,7 +123,7 @@ func listClients(cmd *cobra.Command, _ []string) error {
 func collectGarbage(cmd *cobra.Command, _ []string) error {
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	prune, _ := cmd.Flags().GetBool("prune")
-	out, err := newChatService().CollectGarbage(dry, prune)
+	out, err := newChatService().GC(dry, prune)
 	if _, writeErr := fmt.Fprint(cmd.OutOrStdout(), out); writeErr != nil {
 		return writeErr
 	}

@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package managers
+package services
 
 import (
 	"encoding/json"
@@ -14,7 +14,7 @@ import (
 	"github.com/alswl/chatta/pkg/dal"
 )
 
-func (m *Manager) Stop(force bool) error {
+func (m *ChatService) Stop(force bool) error {
 	st, err := dal.LoadState(m.StatePath)
 	if err != nil {
 		return err
@@ -40,7 +40,7 @@ func (m *Manager) Stop(force bool) error {
 	return dal.SaveState(m.StatePath, st)
 }
 
-func (m *Manager) Survey() ([]common.ClientSurvey, error) {
+func (m *ChatService) Survey() ([]common.ClientSurvey, error) {
 	rows := make([]common.ClientSurvey, 0)
 	for _, home := range m.clientHomes() {
 		path := filepath.Join(home, "state.json")
@@ -73,7 +73,7 @@ func (m *Manager) Survey() ([]common.ClientSurvey, error) {
 	return rows, nil
 }
 
-func (m *Manager) clientHomes() []string {
+func (m *ChatService) clientHomes() []string {
 	roots := []string{m.Home, filepath.Dir(m.Home)}
 	if userHome, err := os.UserHomeDir(); err == nil {
 		agentRoot := filepath.Join(userHome, ".irc-agent")
@@ -115,7 +115,7 @@ func withinRoot(path, root string) bool {
 	return path == root || strings.HasPrefix(path, root+string(filepath.Separator))
 }
 
-func (m *Manager) GC(dryRun, prune bool) (string, error) {
+func (m *ChatService) GC(dryRun, prune bool) (string, error) {
 	rows, err := m.Survey()
 	if err != nil {
 		return "", err
@@ -162,7 +162,7 @@ func (m *Manager) GC(dryRun, prune bool) (string, error) {
 	return b.String(), nil
 }
 
-func (m *Manager) SaveSurvey(path string, rows []common.ClientSurvey) error {
+func (m *ChatService) SaveSurvey(path string, rows []common.ClientSurvey) error {
 	b, err := json.MarshalIndent(rows, "", "  ")
 	if err != nil {
 		return err

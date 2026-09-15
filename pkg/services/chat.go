@@ -1,72 +1,61 @@
 // Package services contains CLI-facing business use cases: one method per
-// `chatta chat` verb. It is the entry point cobra commands call, and it
-// orchestrates a single managers.Manager per invocation.
+// `chatta chat` verb, plus the state/process orchestration that used to live
+// in pkg/managers. It is the entry point cobra commands call.
 package services
 
 import (
 	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/alswl/chatta/pkg/common"
 	"github.com/alswl/chatta/pkg/config"
-	"github.com/alswl/chatta/pkg/managers"
+	"github.com/alswl/chatta/pkg/dal"
 )
 
 type ChatService struct {
-	manager *managers.Manager
+	Home, StatePath, Host, Channel, II string
+	Port                               int
+	Paths                              dal.Paths
+	State                              common.ChatSession
+	OwnerLookup                        func() (common.OwnerBinding, error)
+	Executable                         string
 }
 
 func NewChatService(cfg config.ChatConfig) *ChatService {
-	return &ChatService{manager: managers.NewManager(cfg)}
+	host := cfg.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	port := cfg.Port
+	if port == 0 {
+		port = 6667
+	}
+	channel := cfg.Channel
+	if channel == "" {
+		channel = "#agents"
+	}
+	home := cfg.Home
+	if home == "" {
+		cwd, _ := os.Getwd()
+		root := cwd
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if out, err := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel").Output(); err == nil {
+			root = strings.TrimSpace(string(out))
+		}
+		home = dal.WorktreeHome("", filepath.Clean(root))
+	}
+	paths := dal.ResolvePaths(home)
+	return &ChatService{Home: home, StatePath: paths.State, Host: host, Port: port, Channel: channel, II: cfg.II, Paths: paths, OwnerLookup: dal.FindAgentOwner}
 }
 
-func (s *ChatService) StartSession(nick, role string, takeover bool) error {
-	return s.manager.Start(nick, role, takeover)
-}
-
-func (s *ChatService) SessionHealth(deep bool) common.HealthReport {
-	return s.manager.Health(deep)
-}
-
-func (s *ChatService) StopSession(force bool) error {
-	return s.manager.Stop(force)
-}
-
-func (s *ChatService) JoinChannel(channel string) error {
-	return s.manager.Join(channel)
-}
-
-func (s *ChatService) LeaveChannel(channel, reason string) error {
-	return s.manager.Part(channel, reason)
-}
-
-func (s *ChatService) ChannelMembers(channel string) ([]string, error) {
-	return s.manager.Who(channel)
-}
-
-func (s *ChatService) SendMessage(channel, text string) error {
-	return s.manager.Send(channel, text)
-}
-
-func (s *ChatService) SendDirectMessage(nick, text string) error {
-	return s.manager.DM(nick, text)
-}
-
-func (s *ChatService) ReadInbox(replay bool) ([]string, error) {
-	return s.manager.Poll(replay)
-}
-
-func (s *ChatService) WatchInbox(ctx context.Context, emit func(string)) error {
-	return s.manager.Watch(ctx, emit)
-}
-
-func (s *ChatService) ListClients() ([]common.ClientSurvey, error) {
-	return s.manager.Survey()
-}
-
-func (s *ChatService) CollectGarbage(dryRun, prune bool) (string, error) {
-	return s.manager.GC(dryRun, prune)
-}
-
-func (s *ChatService) RunSupervisor() error {
-	return s.manager.RunSupervisor()
+func (s *ChatService) findOwner() (common.OwnerBinding, error) {
+	if s.OwnerLookup != nil {
+		return s.OwnerLookup()
+	}
+	return dal.FindAgentOwner()
 }

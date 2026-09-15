@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package managers
+package services
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestSurveyEmptyHome(t *testing.T) {
-	m := NewManager(config.ChatConfig{Home: t.TempDir()})
+	m := NewChatService(config.ChatConfig{Home: t.TempDir()})
 	rows, err := m.Survey()
 	if err != nil {
 		t.Fatal(err)
@@ -31,7 +31,7 @@ func TestSurveyFindsSiblingClientHomes(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	m := NewManager(config.ChatConfig{Home: current})
+	m := NewChatService(config.ChatConfig{Home: current})
 	rows, err := m.Survey()
 	if err != nil || len(rows) != 2 {
 		t.Fatalf("expected two homes, got %+v (%v)", rows, err)
