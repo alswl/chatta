@@ -69,7 +69,7 @@ func (s *Server) serveOne(conn net.Conn, handler Handler) {
 		return
 	}
 	var req ControlRequest
-	resp := ControlResponse{}
+	var resp ControlResponse
 	if err := json.Unmarshal(scanner.Bytes(), &req); err != nil {
 		resp = ControlResponse{OK: false, Code: CodeBadRequest, Error: "malformed request: " + err.Error()}
 	} else {

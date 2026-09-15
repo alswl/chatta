@@ -41,11 +41,6 @@ type HealthReport struct {
 	Membership     bool   `json:"membership"`
 	Failure        string `json:"failure,omitempty"`
 }
-type Conversation struct {
-	Name           string `json:"name"`
-	SourceKind     string `json:"source_kind"`
-	TranscriptPath string `json:"transcript_path"`
-}
 type MessageCursor struct {
 	InvokerKey string `json:"invoker_key"`
 	Offset     int64  `json:"offset"`
