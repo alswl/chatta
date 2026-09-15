@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Breaking Changes
+- Chatta now speaks IRC itself, in-process, instead of shelling out to an
+  external `ii` client. `ii` is no longer a prerequisite — only `ngircd` is.
+  Existing sessions predate this transport and must be restarted once:
+  `chatta chat session stop --force && chatta chat session start <nick>`.
+
+### Features
+- Built-in IRC client (`pkg/dal/irc`) and a Unix-socket control protocol
+  (`pkg/daemon`) between a CLI invocation and its own supervisor, replacing
+  named-pipe writes and log tailing.
+- Single append-only `messages.jsonl` per client home replaces the
+  per-conversation `irc/` file tree.
+
+### Miscellaneous
+- `--ii` / `CHATTA_CHAT_II` / `AGENT_CHAT_II` are still accepted for
+  compatibility but ignored, with a one-time deprecation notice on stderr.
+
 ## [0.3.0] - 2026-09-11
 
 ### Miscellaneous

@@ -87,9 +87,9 @@ for ref in (ROOT / "references").glob("*.md"):
 
 # ---- 4. One language: docs, examples and eval files are English -------------
 
-# ii remains an installation prerequisite, but the agent workflow must not
-# operate or explain its implementation details. Installation mentions are
-# allowed; direct commands and transport-file procedures are not.
+# ii is retired; chatta speaks IRC in-process now. These patterns stay as a
+# regression guard against docs drifting back toward operating or explaining
+# an external transport client's implementation details.
 transport_patterns = [
     (r"(?im)^\s*(?:ii)(?:\s|$)", "direct ii command"),
     (r"(?i)ii[^\n]*(?:directory|manual|command|file format|layout|process)", "ii implementation detail"),

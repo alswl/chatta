@@ -52,9 +52,9 @@
     },
     {
       "id": 5,
-      "prompt": "Refresh chat and let me know what came in. In this scenario the quick-start command fails because the `ii` dependency is unavailable.",
-      "expected_output": "Runs quick start, stops without reading the inbox, reports that refresh failed and that the user must install `ii`, and neither installs software nor falls back to legacy or hand-rolled IRC.",
-      "setup": "missing-ii",
+      "prompt": "Refresh chat and let me know what came in. In this scenario the quick-start command fails because the `ngircd` dependency is unavailable.",
+      "expected_output": "Runs quick start, stops without reading the inbox, reports that refresh failed and that the user must install `ngircd`, and neither installs software nor falls back to legacy or hand-rolled IRC.",
+      "setup": "missing-ngircd",
       "checks": ["ran_quickstart", "no_inbox_read", "reported_refresh_failure", "no_install_attempt", "no_legacy_wrapper", "no_monitor_or_watch"],
       "expectations": [
         "The response says the inbox could not be read; it does not claim there were no messages.",
