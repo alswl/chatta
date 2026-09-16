@@ -72,10 +72,7 @@ func Dial(addr, nick, user string, timeout time.Duration) (*Conn, error) {
 		channels: map[string]bool{},
 		pending:  map[string]*pendingRequest{},
 	}
-	regDone := make(chan error, 1)
-	c.mu.Lock()
-	c.pending["__register__"] = &pendingRequest{done: make(chan struct{})}
-	c.mu.Unlock()
+	reg := c.registerPending("__register__")
 	go c.readLoop()
 	if err := c.send(FormatLine("NICK", nick)); err != nil {
 		_ = raw.Close()
@@ -85,18 +82,11 @@ func Dial(addr, nick, user string, timeout time.Duration) (*Conn, error) {
 		_ = raw.Close()
 		return nil, err
 	}
-	go func() {
-		c.mu.Lock()
-		req := c.pending["__register__"]
-		c.mu.Unlock()
-		<-req.done
-		regDone <- req.err
-	}()
 	select {
-	case err := <-regDone:
-		if err != nil {
+	case <-reg.done:
+		if reg.err != nil {
 			_ = raw.Close()
-			return nil, err
+			return nil, reg.err
 		}
 		return c, nil
 	case <-time.After(timeout):
