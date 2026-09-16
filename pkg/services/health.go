@@ -73,7 +73,7 @@ func (m *ChatService) Health(deep bool) common.HealthReport {
 // load with a schema-version error, or the home still has the retired
 // irc/ conversation tree with no control.sock (FR-013).
 func preUpgradeMigrationMessage(home string, loadErr error) string {
-	const migration = "this client home predates the built-in chat transport — stop and restart the session: chatta chat session stop --force && chatta chat session start <nick>"
+	const migration = "this client home was created by an older Chatta and cannot be reused;\nrun: chatta chat session stop --force && chatta chat session start <nick>"
 	if loadErr != nil && strings.Contains(loadErr.Error(), "unsupported state schema version") {
 		return migration
 	}
