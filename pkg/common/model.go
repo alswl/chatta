@@ -71,5 +71,8 @@ type TransportStatus struct {
 	Nick       string   `json:"nick"`
 	Channels   []string `json:"channels"`
 	LastPong   int64    `json:"last_pong"`
-	Failure    string   `json:"failure,omitempty"`
+	// Generation counts the connections the supervisor has established, so
+	// a reader can tell a re-established link from an unbroken one.
+	Generation int64  `json:"generation"`
+	Failure    string `json:"failure,omitempty"`
 }

@@ -136,6 +136,22 @@ func renderMessage(msg common.StoredMessage) string {
 	return fmt.Sprintf("%s (%s) <%s> %s", stamp, label, msg.Nick, msg.Text)
 }
 
+// renderNotice formats a transport event for the same stream as messages,
+// using the `-!-` marker the inbox already carries joins and parts with.
+func renderNotice(text string) string {
+	return fmt.Sprintf("%s -!- %s", time.Now().Format("2006-01-02 15:04:05"), text)
+}
+
+// transportGeneration reports the supervisor's connection counter and
+// whether it currently holds a usable connection at all.
+func (m *ChatService) transportGeneration() (int64, bool) {
+	resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
+	if err != nil || !resp.OK || resp.Status == nil || !resp.Status.Registered {
+		return 0, false
+	}
+	return resp.Status.Generation, true
+}
+
 // Watch streams incoming messages until ctx is cancelled, the owning
 // process exits, or the client cannot be recovered.
 func (m *ChatService) Watch(ctx context.Context, emit func(string)) error {
@@ -149,6 +165,11 @@ func (m *ChatService) Watch(ctx context.Context, emit func(string)) error {
 	defer ticker.Stop()
 	check := time.NewTicker(30 * time.Second)
 	defer check.Stop()
+	// A watcher that goes quiet looks the same whether the channel is idle
+	// or the link is gone, so every interruption is announced -- including
+	// one that is repaired too quickly to be observed while it is down.
+	generation, live := m.transportGeneration()
+	down := !live
 	for {
 		select {
 		case <-ctx.Done():
@@ -158,6 +179,16 @@ func (m *ChatService) Watch(ctx context.Context, emit func(string)) error {
 				return err
 			}
 		case <-ticker.C:
+		}
+		switch current, ok := m.transportGeneration(); {
+		case !ok:
+			if !down {
+				down = true
+				emit(renderNotice(fmt.Sprintf("connection to %s:%d lost; reconnecting", st.Host, st.Port)))
+			}
+		case down || current != generation:
+			down, generation = false, current
+			emit(renderNotice(fmt.Sprintf("connection to %s:%d re-established", st.Host, st.Port)))
 		}
 		if watchOwnerErr == nil && !dal.ProcessAlive(watchOwner) {
 			return nil
