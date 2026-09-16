@@ -73,10 +73,22 @@ func (m *ChatService) Start(nick, role string, takeover bool) error {
 		lastErr = err
 		var taken nickTakenError
 		if !errors.As(err, &taken) {
-			return err
+			break
 		}
 	}
+	// A start that failed must not leave the home looking half-started:
+	// state naming an owner with no supervisor behind it would make every
+	// later command try to recover a session that never existed (US1.4).
+	m.discardSession()
 	return lastErr
+}
+
+// discardSession returns the home to its unstarted state, keeping the
+// supervisor log because that is where the failure is explained.
+func (m *ChatService) discardSession() {
+	_ = os.Remove(m.StatePath)
+	_ = os.Remove(m.Paths.Lock)
+	m.State = common.ChatSession{}
 }
 
 // nickAttempts and nickRetryDelay bound the wait for the server to release a

@@ -4,6 +4,8 @@ package services
 
 import (
 	"errors"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -33,5 +35,26 @@ func TestNickTakenErrorMessageHasNoWrapperPrefix(t *testing.T) {
 	}
 	if errors.As(errors.New("some other failure"), &taken) {
 		t.Fatal("an unrelated error was treated as a nick collision")
+	}
+}
+
+// US1.4: a failed start must not leave the home looking half-started, or
+// every later command tries to recover a session that never existed. This
+// drives the fast failure -- the supervisor cannot be spawned at all --
+// which shares one cleanup path with the slow one, a readiness deadline
+// that expires because the server is unreachable.
+func TestFailedStartLeavesNoHalfStartedSession(t *testing.T) {
+	t.Setenv("CHATTA_CHAT_TEST_OWNER_PID", strconv.Itoa(os.Getpid()))
+	home := t.TempDir()
+	m := NewChatService(config.ChatConfig{Home: home, Host: "127.0.0.1", Port: 1, Channel: "#agents"})
+	m.Executable = "/nonexistent/chatta"
+	if err := m.Start("agent-a", "tester", false); err == nil {
+		t.Fatal("expected the start to fail")
+	}
+	if _, err := os.Stat(m.StatePath); !os.IsNotExist(err) {
+		t.Fatalf("state survived a failed start: %v", err)
+	}
+	if report := m.Health(true); report.Failure != "no session" {
+		t.Fatalf("home did not return to the unstarted state: %+v", report)
 	}
 }
