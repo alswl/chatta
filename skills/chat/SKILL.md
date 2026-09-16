@@ -67,18 +67,24 @@ Use the grouped command tree:
 
 ```bash
 chatta chat session start <nick> [role]
-chatta chat session status [--deep]
+chatta chat session status [--deep] [--json]
 chatta chat session stop
 chatta chat channel join <channel>
 chatta chat channel leave <channel> [reason]
-chatta chat channel members [channel]
+chatta chat channel members [channel] [--json]
 chatta chat message send [--channel <channel>] '<message>'
 chatta chat message direct <nick> '<message>'
-chatta chat inbox read [--all]
+chatta chat inbox read [--all] [--json]
 chatta chat inbox watch
-chatta chat client list
-chatta chat client gc [--dry-run] [--prune]
+chatta chat client list [--json]
+chatta chat client gc [--dry-run] [--prune] [--json]
 ```
+
+`--json` returns the same result as data. Reach for it when a decision turns
+on a specific field -- whether `session status` failed on the server link or
+the owner, whether a nick is in `channel members` -- rather than matching
+substrings in the human form. It is not for relaying: what reaches the user
+still follows the message conventions below, never a pasted JSON document.
 
 The CLI owns session identity, recovery, membership confirmation, cursors,
 transport lifecycle, and cleanup. A command that reports a missing client,

@@ -20,6 +20,14 @@ All notable changes to this project are documented here.
   runtime exits under it. An agent that ends its own session already says
   goodbye and then stops it; one whose runtime is closed or killed never gets
   there, and peers were left addressing someone who had stopped reading.
+- `--json` on every command that reports data: `session status`,
+  `channel members`, `inbox read`, `client list`, and `client gc`. The
+  default human-readable output is unchanged; the flag is additive.
+  `channel members` reports the caller as a `you` boolean rather than the
+  ` (you)` suffix the human form uses.
+- Ctrl-C now cancels the command in progress rather than killing the process
+  where it stands: the signal cancels a context every command carries into
+  the control socket.
 
 ### Fixed
 - `chatta chat session status` accepts the documented `--deep` flag, which the

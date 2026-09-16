@@ -43,6 +43,8 @@ direct messages remain the user-visible collaboration surface.
   that announce transport interruptions as they happen.
 - Per-worktree client homes so independent coding sessions do not collide.
 - Process ownership, locking, channel membership, and conservative client cleanup.
+- Human-readable output by default, with `--json` on every command that
+  reports data.
 - Skills for using the bus, refreshing an agent inbox, and keeping the server
   alive on macOS.
 
