@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -86,11 +87,28 @@ const (
 	nickRetryDelay = 3 * time.Second
 )
 
+// livenessProbe and livenessDeadline bound how long a connection may stay
+// silent before it is probed and then abandoned. Both sit well inside the
+// 30s self-heal cycle the chat skill documents, so an unusable link is
+// reported as unhealthy rather than waited on indefinitely (FR-007).
+const (
+	livenessProbe    = 15 * time.Second
+	livenessDeadline = 35 * time.Second
+)
+
 // nickTakenError carries the nick so the retry loop can recognise the case
 // without the caller ever seeing a wrapped sentinel in the message.
-type nickTakenError struct{ nick string }
+type nickTakenError struct {
+	nick string
+	// detail is the server's own wording, preferred over the generic text
+	// so a rejection is never reported as the wrong kind of failure.
+	detail string
+}
 
 func (e nickTakenError) Error() string {
+	if e.detail != "" {
+		return e.detail
+	}
 	return fmt.Sprintf("the nick %q is already in use on this server; choose a distinct nick if it belongs to another agent", e.nick)
 }
 
@@ -110,20 +128,62 @@ func (m *ChatService) startOnce(base *common.ChatSession, nick string) error {
 		return err
 	}
 	m.State = session
+	// The supervisor knows exactly why it cannot serve -- a refused dial, a
+	// rejected nick, a control socket it could not bind. Startup used to
+	// discard all of that and report a generic timeout, so keep hold of the
+	// last specific reason and hand it to the caller (FR-008).
 	deadline := time.Now().Add(20 * time.Second)
+	detail := ""
 	for time.Now().Before(deadline) {
 		resp, reqErr := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
-		if reqErr == nil && !resp.OK && resp.Code == daemon.CodeNickInUse {
-			_ = dal.StopVerifiedSupervisor(pid, session.SupervisorStartFingerprint)
-			return nickTakenError{nick: nick}
+		if reqErr == nil && !resp.OK {
+			if resp.Error != "" {
+				detail = resp.Error
+			}
+			switch resp.Code {
+			case daemon.CodeNickInUse:
+				_ = dal.StopVerifiedSupervisor(pid, session.SupervisorStartFingerprint)
+				return nickTakenError{nick: nick, detail: resp.Error}
+			case daemon.CodeNickInvalid:
+				// Retrying cannot help: the nick itself has to change.
+				_ = dal.StopVerifiedSupervisor(pid, session.SupervisorStartFingerprint)
+				return errors.New(detail)
+			}
 		}
 		if report := m.Health(true); report.Owner && report.Supervisor && report.JoinedChannels && report.ServerLink && report.Membership {
 			return nil
 		}
+		// A supervisor that died before it could listen never gets to answer
+		// on the control socket, so its reason exists only in its log.
+		if !dal.IsVerifiedSupervisor(pid, session.SupervisorStartFingerprint) {
+			if reason := supervisorLogReason(m.Paths.Log); reason != "" {
+				return fmt.Errorf("the chat supervisor exited during startup: %s", reason)
+			}
+			return fmt.Errorf("the chat supervisor exited during startup; inspect %s", m.Paths.Log)
+		}
 		time.Sleep(250 * time.Millisecond)
 	}
 	_ = dal.StopVerifiedSupervisor(pid, session.SupervisorStartFingerprint)
+	if detail != "" {
+		return fmt.Errorf("chat client did not become ready: %s", detail)
+	}
 	return fmt.Errorf("chat client did not become ready; inspect %s", m.Paths.Log)
+}
+
+// supervisorLogReason returns the last error the supervisor logged, so a
+// failure it could only write to its log still reaches the user.
+func supervisorLogReason(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if line := strings.TrimSpace(lines[i]); strings.Contains(line, "level=ERROR") {
+			return line
+		}
+	}
+	return ""
 }
 
 func (m *ChatService) spawnSupervisor() (int, error) {
@@ -186,6 +246,10 @@ type controlHandler struct {
 	mu      sync.Mutex
 	conn    *irc.Conn
 	failure error
+	// generation counts established connections. A watcher that sees it
+	// change knows the link was interrupted, even if the reconnect was
+	// quick enough that it never observed the gap itself.
+	generation int64
 }
 
 func (h *controlHandler) setConn(c *irc.Conn) {
@@ -193,6 +257,7 @@ func (h *controlHandler) setConn(c *irc.Conn) {
 	h.conn = c
 	if c != nil {
 		h.failure = nil
+		h.generation++
 	}
 	h.mu.Unlock()
 }
@@ -242,15 +307,23 @@ func (h *controlHandler) status() daemon.ControlResponse {
 		if failure != nil {
 			errMsg = failure.Error()
 			var typed *irc.TypedError
-			if errors.As(failure, &typed) && typed.Code == irc.CodeNickInUse {
-				code = daemon.CodeNickInUse
+			if errors.As(failure, &typed) {
+				switch typed.Code {
+				case irc.CodeNickInUse:
+					code = daemon.CodeNickInUse
+				case irc.CodeNickInvalid:
+					code = daemon.CodeNickInvalid
+				}
 			}
 		}
 		return daemon.ControlResponse{OK: false, Code: code, Error: errMsg}
 	}
+	h.mu.Lock()
+	generation := h.generation
+	h.mu.Unlock()
 	return daemon.ControlResponse{OK: true, Status: &common.TransportStatus{
 		Connected: true, Registered: conn.Registered(), Nick: conn.Nick(),
-		Channels: conn.Channels(), LastPong: conn.LastPong(),
+		Channels: conn.Channels(), LastPong: conn.LastPong(), Generation: generation,
 	}}
 }
 
@@ -418,6 +491,17 @@ func (m *ChatService) supervise() error {
 					ticker.Stop()
 					h.setConn(nil)
 					return nil
+				}
+				// A frozen or half-open server leaves the socket established,
+				// so the read loop never ends and nothing else would notice.
+				// Silence is the only symptom: probe it, then give up on it.
+				switch idle := time.Since(conn.LastActivity()); {
+				case idle > livenessDeadline:
+					log.Warn("no traffic from server; dropping the connection", "idle", idle.Round(time.Second))
+					h.setFailure(fmt.Errorf("no response from %s:%d for %s", st.Host, st.Port, idle.Round(time.Second)))
+					_ = conn.Close()
+				case idle > livenessProbe:
+					_ = conn.Ping()
 				}
 			}
 		}

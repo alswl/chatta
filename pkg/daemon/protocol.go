@@ -7,6 +7,7 @@ const (
 	CodeNotConnected  = "not_connected"
 	CodeNotRegistered = "not_registered"
 	CodeNickInUse     = "nick_in_use"
+	CodeNickInvalid   = "nick_invalid"
 	CodeNoSuchNick    = "no_such_nick"
 	CodeNotOnChannel  = "not_on_channel"
 	CodeJoinFailed    = "join_failed"

@@ -23,6 +23,7 @@ func (e *TypedError) Error() string { return e.Msg }
 
 const (
 	CodeNickInUse     = "nick_in_use"
+	CodeNickInvalid   = "nick_invalid"
 	CodeNoSuchNick    = "no_such_nick"
 	CodeJoinFailed    = "join_failed"
 	CodeTimeout       = "timeout"
@@ -42,6 +43,11 @@ type Conn struct {
 	registered bool
 	channels   map[string]bool
 	lastPong   int64
+	// lastActivity is the last time anything at all arrived from the
+	// server. A frozen or half-open peer leaves the socket established
+	// while this stops advancing, which is the only signal that the
+	// connection is no longer usable.
+	lastActivity time.Time
 
 	pending map[string]*pendingRequest
 
@@ -67,10 +73,11 @@ func Dial(addr, nick, user string, timeout time.Duration) (*Conn, error) {
 		return nil, err
 	}
 	c := &Conn{
-		conn:     raw,
-		nick:     nick,
-		channels: map[string]bool{},
-		pending:  map[string]*pendingRequest{},
+		conn:         raw,
+		nick:         nick,
+		channels:     map[string]bool{},
+		pending:      map[string]*pendingRequest{},
+		lastActivity: time.Now(),
 	}
 	reg := c.registerPending("__register__")
 	go c.readLoop()
@@ -96,10 +103,44 @@ func Dial(addr, nick, user string, timeout time.Duration) (*Conn, error) {
 }
 
 // OnMessage sets the callback invoked for every received PRIVMSG.
-func (c *Conn) OnMessage(f func(kind, target, nick, text string)) { c.onMessage = f }
+// The read loop is already running by the time a caller can set this, so
+// both callbacks are guarded: an unsynchronised write is not guaranteed to
+// ever become visible to the read loop's goroutine.
+func (c *Conn) OnMessage(f func(kind, target, nick, text string)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onMessage = f
+}
 
 // OnDisconnect sets the callback invoked once the read loop exits.
-func (c *Conn) OnDisconnect(f func(err error)) { c.onDisconnect = f }
+func (c *Conn) OnDisconnect(f func(err error)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onDisconnect = f
+}
+
+func (c *Conn) messageHandler() func(kind, target, nick, text string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.onMessage
+}
+
+func (c *Conn) disconnectHandler() func(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.onDisconnect
+}
+
+// LastActivity returns when the server was last heard from.
+func (c *Conn) LastActivity() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lastActivity
+}
+
+// Ping asks the server to prove the connection still carries traffic. Any
+// reply advances LastActivity; nothing here waits for one.
+func (c *Conn) Ping() error { return c.send(FormatLine("PING", fmt.Sprint(time.Now().UnixNano()))) }
 
 func (c *Conn) send(line string) error {
 	c.writeMu.Lock()
@@ -250,6 +291,9 @@ func (c *Conn) readLoop() {
 	scanner := bufio.NewScanner(c.conn)
 	scanner.Buffer(make([]byte, 0, 4096), 8192)
 	for scanner.Scan() {
+		c.mu.Lock()
+		c.lastActivity = time.Now()
+		c.mu.Unlock()
 		msg, ok := ParseLine(scanner.Text())
 		if !ok {
 			continue
@@ -257,8 +301,8 @@ func (c *Conn) readLoop() {
 		c.handle(msg)
 	}
 	err := scanner.Err()
-	if c.onDisconnect != nil {
-		c.onDisconnect(err)
+	if f := c.disconnectHandler(); f != nil {
+		f(err)
 	}
 }
 
@@ -288,7 +332,10 @@ func (c *Conn) handle(msg Message) {
 		if len(msg.Params) > 0 {
 			reason = msg.Params[len(msg.Params)-1]
 		}
-		c.resolvePending("__register__", &TypedError{Code: CodeNickInUse, Msg: fmt.Sprintf("the nick %q was rejected by the server: %s", attemptedNick(msg), reason)})
+		// 432 is not 433: the nick is malformed or too long, so retrying it
+		// or picking another name of the same shape fails again. It gets its
+		// own code so the caller can say what actually has to change.
+		c.resolvePending("__register__", &TypedError{Code: CodeNickInvalid, Msg: fmt.Sprintf("the nick %q was rejected by the server: %s", attemptedNick(msg), reason)})
 	case "JOIN":
 		nick := Nick(msg.Prefix)
 		if nick != c.Nick() || len(msg.Params) == 0 {
@@ -340,8 +387,8 @@ func (c *Conn) handle(msg Message) {
 		} else {
 			target = nick
 		}
-		if c.onMessage != nil {
-			c.onMessage(kind, target, nick, text)
+		if f := c.messageHandler(); f != nil {
+			f(kind, target, nick, text)
 		}
 	}
 }

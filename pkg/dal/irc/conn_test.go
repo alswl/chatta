@@ -189,3 +189,80 @@ func asTypedError(err error, target **TypedError) bool {
 	}
 	return false
 }
+
+func TestConnErroneousNicknameIsNotReportedAsInUse(t *testing.T) {
+	s := newScriptedServer(t)
+	s.on("NICK", func(conn net.Conn, params []string) {
+		writeLine(conn, ":srv 432 * toolongnick :Nickname too long, max. 9 characters")
+	})
+	s.serveOne(t)
+	_, err := Dial(s.ln.Addr().String(), "toolongnick", "toolongnick", 2*time.Second)
+	if err == nil {
+		t.Fatal("expected an invalid-nick error")
+	}
+	var typed *TypedError
+	if !asTypedError(err, &typed) || typed.Code != CodeNickInvalid {
+		t.Fatalf("432 must not be reported as nick_in_use, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "Nickname too long") {
+		t.Fatalf("the server's own reason must survive, got %q", err)
+	}
+}
+
+func TestConnLastActivityAdvancesWithServerTraffic(t *testing.T) {
+	s := newScriptedServer(t)
+	s.on("NICK", func(conn net.Conn, params []string) {
+		writeLine(conn, ":srv 001 agent-a :welcome")
+	})
+	notice := make(chan struct{}, 1)
+	s.on("PING", func(conn net.Conn, params []string) {
+		writeLine(conn, ":srv NOTICE agent-a :still here")
+		notice <- struct{}{}
+	})
+	s.serveOne(t)
+	c, err := Dial(s.ln.Addr().String(), "agent-a", "agent-a", 2*time.Second)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer c.Close()
+	before := c.LastActivity()
+	if before.IsZero() {
+		t.Fatal("a freshly dialled connection must count as active")
+	}
+	if err := c.Ping(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-notice:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server never saw the liveness probe")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if c.LastActivity().After(before) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("LastActivity did not advance after the server replied")
+}
+
+func TestConnDisconnectCallbackFiresWhenServerGoesAway(t *testing.T) {
+	s := newScriptedServer(t)
+	s.on("NICK", func(conn net.Conn, params []string) {
+		writeLine(conn, ":srv 001 agent-a :welcome")
+	})
+	s.serveOne(t)
+	c, err := Dial(s.ln.Addr().String(), "agent-a", "agent-a", 2*time.Second)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	gone := make(chan error, 1)
+	c.OnDisconnect(func(err error) { gone <- err })
+	_ = c.Close()
+	select {
+	case <-gone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("a closed connection must report the disconnect")
+	}
+}
