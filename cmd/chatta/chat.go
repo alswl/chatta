@@ -24,8 +24,10 @@ func init() {
 	flags.StringVar(&chatHost, "host", "", "chat server host")
 	flags.IntVar(&chatPort, "port", 0, "chat server port")
 	flags.StringVar(&chatChannel, "channel", "", "home channel")
+	// Not pflag's MarkDeprecated: that prints its own warning, and the
+	// contract allows exactly one deprecation line on stderr (FR-010),
+	// which config emits for the flag and both env aliases alike.
 	flags.StringVar(&chatII, "ii", "", "deprecated: ignored — chatta no longer shells out to ii")
-	_ = chatCmd.PersistentFlags().MarkDeprecated("ii", "chatta now speaks IRC in-process; this flag is ignored")
 	chatCmd.AddCommand(sessionCmd, channelCmd, messageCmd, inboxCmd, clientCmd)
 	chatCmd.AddCommand(startCmd, healthCmd, joinCmd, partCmd, sendCmd, dmCmd, pollCmd, watchCmd, whoCmd, stopCmd, clientsCmd, gcCmd, supervisorCmd)
 	rootCmd.AddCommand(chatCmd)
@@ -46,7 +48,7 @@ func startSession(cmd *cobra.Command, args []string) error {
 }
 
 func checkHealth(cmd *cobra.Command, _ []string) error {
-	r := newChatService().Health(true)
+	r := newChatService().Health(mustBool(cmd, "deep"))
 	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "owner=%t supervisor=%t channels=%t connected=%t server=%t membership=%t\n", r.Owner, r.Supervisor, r.JoinedChannels, r.Connected, r.ServerLink, r.Membership); err != nil {
 		return err
 	}
@@ -138,7 +140,9 @@ func newStartCmd(use, short string, hidden bool) *cobra.Command {
 }
 
 func newHealthCmd(use, short string, hidden bool) *cobra.Command {
-	return &cobra.Command{Use: use, Args: cobra.NoArgs, Short: short, Hidden: hidden, RunE: checkHealth}
+	cmd := &cobra.Command{Use: use, Args: cobra.NoArgs, Short: short, Hidden: hidden, RunE: checkHealth}
+	cmd.Flags().Bool("deep", true, "probe the server link, not just the local client")
+	return cmd
 }
 
 func newJoinCmd(use, short string, hidden bool) *cobra.Command {
