@@ -17,8 +17,10 @@ func withJSON(cmd *cobra.Command) *cobra.Command {
 func wantsJSON(cmd *cobra.Command) bool { return mustBool(cmd, "json") }
 
 // emitJSON writes v to the command's stdout as one indented document with a
-// trailing newline. Collections print as `[]` rather than `null` when empty,
-// so a consumer can index the result without a nil check.
+// trailing newline. A successful command with nothing to report passes an
+// empty slice and prints `[]`; a failing one passes the nil it got back and
+// prints `null`, so a consumer has to check the exit code before indexing.
+// contracts/cli-commands.md records that asymmetry.
 func emitJSON(cmd *cobra.Command, v any) error {
 	enc := json.NewEncoder(cmd.OutOrStdout())
 	enc.SetIndent("", "  ")
