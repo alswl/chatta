@@ -39,8 +39,8 @@ func splitUTF8(text string, limit int) []string {
 	return out
 }
 
-func (m *ChatService) Send(channel, text string) error {
-	st, err := m.Ensure()
+func (m *ChatService) Send(ctx context.Context, channel, text string) error {
+	st, err := m.Ensure(ctx)
 	if err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func (m *ChatService) Send(channel, text string) error {
 		return fmt.Errorf("message must contain non-whitespace text")
 	}
 	for _, part := range parts {
-		resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "privmsg", Target: target, Text: part})
+		resp, err := daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "privmsg", Target: target, Text: part})
 		if err != nil {
 			return fmt.Errorf("send: %w", err)
 		}
@@ -74,8 +74,8 @@ func (m *ChatService) Send(channel, text string) error {
 	return nil
 }
 
-func (m *ChatService) DM(nick, text string) error {
-	st, err := m.Ensure()
+func (m *ChatService) DM(ctx context.Context, nick, text string) error {
+	st, err := m.Ensure(ctx)
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (m *ChatService) DM(nick, text string) error {
 		return fmt.Errorf("message must contain non-whitespace text")
 	}
 	for _, part := range parts {
-		resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "privmsg", Target: nick, Text: part})
+		resp, err := daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "privmsg", Target: nick, Text: part})
 		if err != nil {
 			return err
 		}
@@ -101,8 +101,24 @@ func (m *ChatService) DM(nick, text string) error {
 	return nil
 }
 
-func (m *ChatService) Poll(replay bool) ([]string, error) {
-	st, err := m.Ensure()
+// Poll renders what PollMessages returns. Both consume the cursor, so a
+// caller picks one or the other -- never both for a single invocation.
+func (m *ChatService) Poll(ctx context.Context, replay bool) ([]string, error) {
+	msgs, err := m.PollMessages(ctx, replay)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]string, 0, len(msgs))
+	for _, msg := range msgs {
+		result = append(result, renderMessage(msg))
+	}
+	return result, nil
+}
+
+// PollMessages advances the cursor and returns the messages it passed, as
+// stored, for callers that want the data rather than the rendering.
+func (m *ChatService) PollMessages(ctx context.Context, replay bool) ([]common.StoredMessage, error) {
+	st, err := m.Ensure(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -115,12 +131,12 @@ func (m *ChatService) Poll(replay bool) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := make([]string, 0, len(msgs))
+	result := make([]common.StoredMessage, 0, len(msgs))
 	for _, msg := range msgs {
 		if msg.Nick == st.Nick {
 			continue
 		}
-		result = append(result, renderMessage(msg))
+		result = append(result, msg)
 	}
 	cursor.Offset = next
 	cursor.InvokerKey = st.SessionID
@@ -144,8 +160,8 @@ func renderNotice(text string) string {
 
 // transportGeneration reports the supervisor's connection counter and
 // whether it currently holds a usable connection at all.
-func (m *ChatService) transportGeneration() (int64, bool) {
-	resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
+func (m *ChatService) transportGeneration(ctx context.Context) (int64, bool) {
+	resp, err := daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
 	if err != nil || !resp.OK || resp.Status == nil || !resp.Status.Registered {
 		return 0, false
 	}
@@ -155,7 +171,7 @@ func (m *ChatService) transportGeneration() (int64, bool) {
 // Watch streams incoming messages until ctx is cancelled, the owning
 // process exits, or the client cannot be recovered.
 func (m *ChatService) Watch(ctx context.Context, emit func(string)) error {
-	st, err := m.Ensure()
+	st, err := m.Ensure(ctx)
 	if err != nil {
 		return err
 	}
@@ -168,19 +184,19 @@ func (m *ChatService) Watch(ctx context.Context, emit func(string)) error {
 	// A watcher that goes quiet looks the same whether the channel is idle
 	// or the link is gone, so every interruption is announced -- including
 	// one that is repaired too quickly to be observed while it is down.
-	generation, live := m.transportGeneration()
+	generation, live := m.transportGeneration(ctx)
 	down := !live
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-check.C:
-			if _, err := m.Ensure(); err != nil {
+			if _, err := m.Ensure(ctx); err != nil {
 				return err
 			}
 		case <-ticker.C:
 		}
-		switch current, ok := m.transportGeneration(); {
+		switch current, ok := m.transportGeneration(ctx); {
 		case !ok:
 			if !down {
 				down = true
@@ -207,10 +223,29 @@ func (m *ChatService) Watch(ctx context.Context, emit func(string)) error {
 	}
 }
 
-func (m *ChatService) Who(channel string) ([]string, error) {
-	st, err := m.Ensure()
+// Who renders what Members returns.
+func (m *ChatService) Who(ctx context.Context, channel string) ([]string, error) {
+	members, err := m.Members(ctx, channel)
 	if err != nil {
 		return nil, err
+	}
+	result := make([]string, 0, len(members.Members))
+	for _, member := range members.Members {
+		line := member.Nick
+		if member.You {
+			line += " (you)"
+		}
+		result = append(result, line)
+	}
+	return result, nil
+}
+
+// Members reports the channel's occupants, flagging the caller rather than
+// suffixing its nick.
+func (m *ChatService) Members(ctx context.Context, channel string) (common.ChannelMembers, error) {
+	st, err := m.Ensure(ctx)
+	if err != nil {
+		return common.ChannelMembers{}, err
 	}
 	target := st.HomeChannel.Name
 	if channel != "" {
@@ -224,22 +259,19 @@ func (m *ChatService) Who(channel string) ([]string, error) {
 		}
 	}
 	if !joined {
-		return nil, fmt.Errorf("not in %s — run: chatta chat join %s", target, target)
+		return common.ChannelMembers{}, fmt.Errorf("not in %s — run: chatta chat join %s", target, target)
 	}
-	resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "names", Target: target})
+	resp, err := daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "names", Target: target})
 	if err != nil {
-		return nil, err
+		return common.ChannelMembers{}, err
 	}
 	if !resp.OK {
-		return nil, fmt.Errorf("no NAMES reply — run: chatta chat health")
+		return common.ChannelMembers{}, fmt.Errorf("no NAMES reply — run: chatta chat health")
 	}
-	result := make([]string, 0, len(resp.Members))
+	result := common.ChannelMembers{Channel: target, Members: make([]common.ChannelMember, 0, len(resp.Members))}
 	for _, n := range resp.Members {
 		trimmed := strings.TrimLeft(n, "@+")
-		if trimmed == st.Nick {
-			trimmed += " (you)"
-		}
-		result = append(result, trimmed)
+		result.Members = append(result.Members, common.ChannelMember{Nick: trimmed, You: trimmed == st.Nick})
 	}
 	return result, nil
 }

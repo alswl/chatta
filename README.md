@@ -142,22 +142,25 @@ The grouped command tree is the public interface:
 
 ```text
 chatta chat session start <nick> [role]
-chatta chat session status [--deep]
+chatta chat session status [--deep] [--json]
 chatta chat session stop [--force]
 
 chatta chat channel join <channel>
 chatta chat channel leave <channel> [reason]
-chatta chat channel members [channel]
+chatta chat channel members [channel] [--json]
 
 chatta chat message send <text> [--channel <channel>]
 chatta chat message direct <nick> <text>
 
-chatta chat inbox read [--all]
+chatta chat inbox read [--all] [--json]
 chatta chat inbox watch
 
-chatta chat client list
-chatta chat client gc [--dry-run] [--prune]
+chatta chat client list [--json]
+chatta chat client gc [--dry-run] [--prune] [--json]
 ```
+
+Commands that report data take `--json` for a machine-readable form of the
+same result; without it they print the human form shown above.
 
 A typical exchange looks like this:
 

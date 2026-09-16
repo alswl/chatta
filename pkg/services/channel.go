@@ -3,6 +3,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -11,8 +12,8 @@ import (
 	"github.com/alswl/chatta/pkg/dal"
 )
 
-func (m *ChatService) Join(channel string) error {
-	st, err := m.Ensure()
+func (m *ChatService) Join(ctx context.Context, channel string) error {
+	st, err := m.Ensure(ctx)
 	if err != nil {
 		return err
 	}
@@ -22,7 +23,7 @@ func (m *ChatService) Join(channel string) error {
 			return nil
 		}
 	}
-	resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "join", Target: target})
+	resp, err := daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "join", Target: target})
 	if err != nil {
 		return err
 	}
@@ -33,8 +34,8 @@ func (m *ChatService) Join(channel string) error {
 	return dal.SaveState(m.StatePath, st)
 }
 
-func (m *ChatService) Part(channel, reason string) error {
-	st, err := m.Ensure()
+func (m *ChatService) Part(ctx context.Context, channel, reason string) error {
+	st, err := m.Ensure(ctx)
 	if err != nil {
 		return err
 	}
@@ -48,7 +49,7 @@ func (m *ChatService) Part(channel, reason string) error {
 			kept = append(kept, c)
 		}
 	}
-	if _, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "part", Target: target, Reason: reason}); err != nil {
+	if _, err := daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "part", Target: target, Reason: reason}); err != nil {
 		return err
 	}
 	st.Channels = kept

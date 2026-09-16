@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -17,13 +18,29 @@ const (
 
 // Request connects to the control socket at path, sends req, and returns
 // its response. A refused or missing socket, or a deadline exceeded before
-// a full response line arrives, maps to CodeNotConnected.
-func Request(path string, req ControlRequest) (ControlResponse, error) {
-	conn, err := net.DialTimeout("unix", path, connectDeadline)
+// a full response line arrives, maps to CodeNotConnected. Cancelling ctx
+// abandons the round trip: the deadlines below bound a peer that is merely
+// slow, and closing the socket is what unblocks a read already in progress.
+func Request(ctx context.Context, path string, req ControlRequest) (ControlResponse, error) {
+	dialer := net.Dialer{Timeout: connectDeadline}
+	conn, err := dialer.DialContext(ctx, "unix", path)
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ControlResponse{}, &Error{Code: CodeTimeout, Msg: fmt.Sprintf("control request cancelled: %v", ctxErr)}
+		}
 		return ControlResponse{}, &Error{Code: CodeNotConnected, Msg: fmt.Sprintf("control socket unreachable: %v", err)}
 	}
 	defer func() { _ = conn.Close() }()
+
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-done:
+		}
+	}()
 
 	b, err := json.Marshal(req)
 	if err != nil {
@@ -39,6 +56,9 @@ func Request(path string, req ControlRequest) (ControlResponse, error) {
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 0, 4096), 1<<20)
 	if !scanner.Scan() {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ControlResponse{}, &Error{Code: CodeTimeout, Msg: fmt.Sprintf("control request cancelled: %v", ctxErr)}
+		}
 		if err := scanner.Err(); err != nil {
 			return ControlResponse{}, &Error{Code: CodeTimeout, Msg: fmt.Sprintf("control socket response timed out: %v", err)}
 		}

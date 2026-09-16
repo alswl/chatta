@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // scriptedServer accepts one connection and runs script against it: script
@@ -22,9 +24,7 @@ type scriptedServer struct {
 func newScriptedServer(t *testing.T) *scriptedServer {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	s := &scriptedServer{ln: ln, handlers: map[string]func(conn net.Conn, params []string){}}
 	t.Cleanup(func() { _ = ln.Close() })
 	return s
@@ -66,13 +66,10 @@ func TestConnSuccessfulRegistration(t *testing.T) {
 	})
 	s.serveOne(t)
 	c, err := Dial(s.ln.Addr().String(), "agent-a", "agent-a", 2*time.Second)
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
+	require.NoError(t, err, "dial")
 	defer c.Close()
-	if !c.Registered() || c.Nick() != "agent-a" {
-		t.Fatalf("registration did not complete: registered=%v nick=%s", c.Registered(), c.Nick())
-	}
+	require.True(t, c.Registered(), "registration did not complete")
+	require.Equal(t, "agent-a", c.Nick())
 }
 
 func TestConnNicknameInUseOnRegistration(t *testing.T) {
@@ -82,13 +79,10 @@ func TestConnNicknameInUseOnRegistration(t *testing.T) {
 	})
 	s.serveOne(t)
 	_, err := Dial(s.ln.Addr().String(), "agent-a", "agent-a", 2*time.Second)
-	if err == nil {
-		t.Fatal("expected nick-in-use error")
-	}
+	require.Error(t, err, "expected nick-in-use error")
 	var typed *TypedError
-	if !asTypedError(err, &typed) || typed.Code != CodeNickInUse {
-		t.Fatalf("expected nick_in_use typed error, got %v", err)
-	}
+	require.True(t, asTypedError(err, &typed), "expected a typed error, got %v", err)
+	require.Equal(t, CodeNickInUse, typed.Code)
 }
 
 func TestConnJoinConfirmedBy366(t *testing.T) {
@@ -104,17 +98,10 @@ func TestConnJoinConfirmedBy366(t *testing.T) {
 	})
 	s.serveOne(t)
 	c, err := Dial(s.ln.Addr().String(), "agent-a", "agent-a", 2*time.Second)
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
+	require.NoError(t, err, "dial")
 	defer c.Close()
-	if err := c.Join("#agents", 2*time.Second); err != nil {
-		t.Fatalf("join: %v", err)
-	}
-	channels := c.Channels()
-	if len(channels) != 1 || channels[0] != "#agents" {
-		t.Fatalf("unexpected channels: %v", channels)
-	}
+	require.NoError(t, c.Join("#agents", 2*time.Second), "join")
+	require.Equal(t, []string{"#agents"}, c.Channels())
 }
 
 func TestConnNoSuchNickOnAbsentDMTarget(t *testing.T) {
@@ -127,22 +114,15 @@ func TestConnNoSuchNickOnAbsentDMTarget(t *testing.T) {
 	})
 	s.serveOne(t)
 	c, err := Dial(s.ln.Addr().String(), "agent-a", "agent-a", 2*time.Second)
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
+	require.NoError(t, err, "dial")
 	defer c.Close()
 	req := c.registerPending("privmsg:ghost")
-	if err := c.Privmsg("ghost", "hello"); err != nil {
-		t.Fatalf("privmsg: %v", err)
-	}
+	require.NoError(t, c.Privmsg("ghost", "hello"), "privmsg")
 	err = c.wait(req, 2*time.Second)
-	if err == nil {
-		t.Fatal("expected no_such_nick error")
-	}
+	require.Error(t, err, "expected no_such_nick error")
 	var typed *TypedError
-	if !asTypedError(err, &typed) || typed.Code != CodeNoSuchNick {
-		t.Fatalf("expected no_such_nick typed error, got %v", err)
-	}
+	require.True(t, asTypedError(err, &typed), "expected a typed error, got %v", err)
+	require.Equal(t, CodeNoSuchNick, typed.Code)
 }
 
 func TestConnPingPong(t *testing.T) {
@@ -156,13 +136,9 @@ func TestConnPingPong(t *testing.T) {
 	})
 	s.serveOne(t)
 	c, err := Dial(s.ln.Addr().String(), "agent-a", "agent-a", 2*time.Second)
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
+	require.NoError(t, err, "dial")
 	defer c.Close()
-	if err := writeToConn(c, "PING :12345"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, writeToConn(c, "PING :12345"))
 	select {
 	case <-pongReceived:
 	case <-time.After(2 * time.Second):
@@ -197,16 +173,11 @@ func TestConnErroneousNicknameIsNotReportedAsInUse(t *testing.T) {
 	})
 	s.serveOne(t)
 	_, err := Dial(s.ln.Addr().String(), "toolongnick", "toolongnick", 2*time.Second)
-	if err == nil {
-		t.Fatal("expected an invalid-nick error")
-	}
+	require.Error(t, err, "expected an invalid-nick error")
 	var typed *TypedError
-	if !asTypedError(err, &typed) || typed.Code != CodeNickInvalid {
-		t.Fatalf("432 must not be reported as nick_in_use, got %v", err)
-	}
-	if !strings.Contains(err.Error(), "Nickname too long") {
-		t.Fatalf("the server's own reason must survive, got %q", err)
-	}
+	require.True(t, asTypedError(err, &typed), "expected a typed error, got %v", err)
+	require.Equal(t, CodeNickInvalid, typed.Code, "432 must not be reported as nick_in_use")
+	require.Contains(t, err.Error(), "Nickname too long", "the server's own reason must survive")
 }
 
 func TestConnLastActivityAdvancesWithServerTraffic(t *testing.T) {
@@ -221,17 +192,11 @@ func TestConnLastActivityAdvancesWithServerTraffic(t *testing.T) {
 	})
 	s.serveOne(t)
 	c, err := Dial(s.ln.Addr().String(), "agent-a", "agent-a", 2*time.Second)
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
+	require.NoError(t, err, "dial")
 	defer c.Close()
 	before := c.LastActivity()
-	if before.IsZero() {
-		t.Fatal("a freshly dialled connection must count as active")
-	}
-	if err := c.Ping(); err != nil {
-		t.Fatal(err)
-	}
+	require.False(t, before.IsZero(), "a freshly dialled connection must count as active")
+	require.NoError(t, c.Ping())
 	select {
 	case <-notice:
 	case <-time.After(2 * time.Second):
@@ -254,9 +219,7 @@ func TestConnDisconnectCallbackFiresWhenServerGoesAway(t *testing.T) {
 	})
 	s.serveOne(t)
 	c, err := Dial(s.ln.Addr().String(), "agent-a", "agent-a", 2*time.Second)
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
+	require.NoError(t, err, "dial")
 	gone := make(chan error, 1)
 	c.OnDisconnect(func(err error) { gone <- err })
 	_ = c.Close()

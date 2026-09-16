@@ -128,22 +128,25 @@ chatta chat message send --channel project \
 
 ```text
 chatta chat session start <nick> [role]
-chatta chat session status [--deep]
+chatta chat session status [--deep] [--json]
 chatta chat session stop [--force]
 
 chatta chat channel join <channel>
 chatta chat channel leave <channel> [reason]
-chatta chat channel members [channel]
+chatta chat channel members [channel] [--json]
 
 chatta chat message send <text> [--channel <channel>]
 chatta chat message direct <nick> <text>
 
-chatta chat inbox read [--all]
+chatta chat inbox read [--all] [--json]
 chatta chat inbox watch
 
-chatta chat client list
-chatta chat client gc [--dry-run] [--prune]
+chatta chat client list [--json]
+chatta chat client gc [--dry-run] [--prune] [--json]
 ```
+
+输出数据的命令都接受 `--json`，返回同一份结果的机器可读形式；不加则输出上面的
+人类可读形式。
 
 一次典型的协作流程：
 

@@ -22,7 +22,7 @@ import (
 	"github.com/alswl/chatta/pkg/dal/irc"
 )
 
-func (m *ChatService) Start(nick, role string, takeover bool) error {
+func (m *ChatService) Start(ctx context.Context, nick, role string, takeover bool) error {
 	owner, err := m.findOwner()
 	if err != nil {
 		return err
@@ -66,7 +66,7 @@ func (m *ChatService) Start(nick, role string, takeover bool) error {
 		if attempt > 0 {
 			time.Sleep(nickRetryDelay)
 		}
-		err := m.startOnce(&session, nick)
+		err := m.startOnce(ctx, &session, nick)
 		if err == nil {
 			return nil
 		}
@@ -124,7 +124,7 @@ func (e nickTakenError) Error() string {
 	return fmt.Sprintf("the nick %q is already in use on this server; choose a distinct nick if it belongs to another agent", e.nick)
 }
 
-func (m *ChatService) startOnce(base *common.ChatSession, nick string) error {
+func (m *ChatService) startOnce(ctx context.Context, base *common.ChatSession, nick string) error {
 	session := *base
 	pid, err := m.spawnSupervisor()
 	if err != nil {
@@ -147,7 +147,11 @@ func (m *ChatService) startOnce(base *common.ChatSession, nick string) error {
 	deadline := time.Now().Add(20 * time.Second)
 	detail := ""
 	for time.Now().Before(deadline) {
-		resp, reqErr := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
+		if err := ctx.Err(); err != nil {
+			_ = dal.StopVerifiedSupervisor(pid, session.SupervisorStartFingerprint)
+			return err
+		}
+		resp, reqErr := daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
 		if reqErr == nil && !resp.OK {
 			if resp.Error != "" {
 				detail = resp.Error
@@ -162,7 +166,7 @@ func (m *ChatService) startOnce(base *common.ChatSession, nick string) error {
 				return errors.New(detail)
 			}
 		}
-		if report := m.Health(true); report.Owner && report.Supervisor && report.JoinedChannels && report.ServerLink && report.Membership {
+		if report := m.Health(ctx, true); report.Owner && report.Supervisor && report.JoinedChannels && report.ServerLink && report.Membership {
 			return nil
 		}
 		// A supervisor that died before it could listen never gets to answer

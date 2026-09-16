@@ -44,6 +44,20 @@ type MessageCursor struct {
 	InvokerKey string `json:"invoker_key"`
 	Offset     int64  `json:"offset"`
 }
+
+// ChannelMembers is the machine-readable form of `channel members`: the
+// human form marks the caller with a "(you)" suffix, which is presentation,
+// not data, so here it is a field.
+type ChannelMembers struct {
+	Channel string          `json:"channel"`
+	Members []ChannelMember `json:"members"`
+}
+
+type ChannelMember struct {
+	Nick string `json:"nick"`
+	You  bool   `json:"you"`
+}
+
 type ClientSurvey struct {
 	ClientHome         string `json:"client_home"`
 	SessionSummary     string `json:"session_summary"`

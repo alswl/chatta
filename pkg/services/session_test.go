@@ -3,14 +3,15 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/alswl/chatta/pkg/common"
 	"github.com/alswl/chatta/pkg/config"
+	"github.com/stretchr/testify/require"
 )
 
 func testSession() common.ChatSession {
@@ -19,23 +20,17 @@ func testSession() common.ChatSession {
 
 func TestChatServiceUsesConfiguredChatHome(t *testing.T) {
 	m := NewChatService(config.ChatConfig{Home: t.TempDir(), Host: "127.0.0.1", Port: 6667, Channel: "#agents"})
-	if m.Paths.State == "" || m.Paths.Home != m.Home {
-		t.Fatalf("unexpected manager paths: %+v", m.Paths)
-	}
+	require.NotEmpty(t, m.Paths.State)
+	require.Equal(t, m.Home, m.Paths.Home)
 }
 
 func TestNickTakenErrorMessageHasNoWrapperPrefix(t *testing.T) {
 	err := error(nickTakenError{nick: "misky"})
-	if !strings.Contains(err.Error(), `the nick "misky" is already in use`) {
-		t.Fatalf("unexpected message: %s", err)
-	}
+	require.Contains(t, err.Error(), `the nick "misky" is already in use`)
 	var taken nickTakenError
-	if !errors.As(err, &taken) || taken.nick != "misky" {
-		t.Fatalf("nick collision was not recognisable through errors.As: %v", err)
-	}
-	if errors.As(errors.New("some other failure"), &taken) {
-		t.Fatal("an unrelated error was treated as a nick collision")
-	}
+	require.ErrorAs(t, err, &taken, "nick collision was not recognisable through errors.As")
+	require.Equal(t, "misky", taken.nick)
+	require.False(t, errors.As(errors.New("some other failure"), &taken), "an unrelated error was treated as a nick collision")
 }
 
 // US1.4: a failed start must not leave the home looking half-started, or
@@ -48,13 +43,9 @@ func TestFailedStartLeavesNoHalfStartedSession(t *testing.T) {
 	home := t.TempDir()
 	m := NewChatService(config.ChatConfig{Home: home, Host: "127.0.0.1", Port: 1, Channel: "#agents"})
 	m.Executable = "/nonexistent/chatta"
-	if err := m.Start("agent-a", "tester", false); err == nil {
-		t.Fatal("expected the start to fail")
-	}
-	if _, err := os.Stat(m.StatePath); !os.IsNotExist(err) {
-		t.Fatalf("state survived a failed start: %v", err)
-	}
-	if report := m.Health(true); report.Failure != "no session" {
-		t.Fatalf("home did not return to the unstarted state: %+v", report)
-	}
+	require.Error(t, m.Start(context.Background(), "agent-a", "tester", false), "expected the start to fail")
+	_, statErr := os.Stat(m.StatePath)
+	require.True(t, os.IsNotExist(statErr), "state survived a failed start: %v", statErr)
+	require.Equal(t, "no session", m.Health(context.Background(), true).Failure,
+		"home did not return to the unstarted state")
 }

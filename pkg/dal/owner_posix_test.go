@@ -8,42 +8,35 @@ import (
 	"testing"
 
 	"github.com/alswl/chatta/pkg/common"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestProcessStartAndAlive(t *testing.T) {
 	fingerprint := ProcessStart(os.Getpid())
-	if fingerprint == "" {
-		t.Fatal("ProcessStart returned an empty fingerprint")
-	}
-	if !ProcessAlive(common.OwnerBinding{PID: os.Getpid(), StartFingerprint: fingerprint}) {
-		t.Fatal("current process should be alive")
-	}
-	if ProcessAlive(common.OwnerBinding{PID: os.Getpid(), StartFingerprint: "different"}) {
-		t.Fatal("mismatched fingerprint must not be alive")
-	}
+	require.NotEmpty(t, fingerprint, "ProcessStart returned an empty fingerprint")
+	require.True(t, ProcessAlive(common.OwnerBinding{PID: os.Getpid(), StartFingerprint: fingerprint}),
+		"current process should be alive")
+	require.False(t, ProcessAlive(common.OwnerBinding{PID: os.Getpid(), StartFingerprint: "different"}),
+		"mismatched fingerprint must not be alive")
 }
 
 func TestInvocationSessionIDPrefersCallingRuntime(t *testing.T) {
 	t.Setenv("CODEX_SESSION_ID", "reader-session")
-	if got := InvocationSessionID("owner-session"); got != "reader-session" {
-		t.Fatalf("got %q", got)
-	}
+	require.Equal(t, "reader-session", InvocationSessionID("owner-session"))
 }
 
 func TestFindAgentOwnerUsesValidatedExplicitTestOwner(t *testing.T) {
 	t.Setenv(testOwnerPIDEnv, strconv.Itoa(os.Getpid()))
 	owner, err := FindAgentOwner()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if owner.PID != os.Getpid() || owner.Runtime != "verification-fixture" || !ProcessAlive(owner) {
-		t.Fatalf("unexpected fixture owner: %+v", owner)
-	}
+	require.NoError(t, err)
+	require.Equal(t, os.Getpid(), owner.PID)
+	require.Equal(t, "verification-fixture", owner.Runtime)
+	require.True(t, ProcessAlive(owner), "fixture owner is not alive")
 }
 
 func TestFindAgentOwnerRejectsInvalidExplicitTestOwner(t *testing.T) {
 	t.Setenv(testOwnerPIDEnv, "not-a-pid")
-	if _, err := FindAgentOwner(); err == nil {
-		t.Fatal("invalid fixture owner unexpectedly succeeded")
-	}
+	_, err := FindAgentOwner()
+	require.Error(t, err, "invalid fixture owner unexpectedly succeeded")
 }

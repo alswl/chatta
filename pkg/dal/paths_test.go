@@ -5,39 +5,32 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestWorktreeHomeDeterministicAndDistinct(t *testing.T) {
 	root := t.TempDir()
 	a := WorktreeHome(root, "/repo/worktrees/a")
-	if a != WorktreeHome(root, "/repo/worktrees/a") {
-		t.Fatal("not deterministic")
-	}
-	if a == WorktreeHome(root, "/repo/worktrees/b") {
-		t.Fatal("collision")
-	}
-	if !strings.HasPrefix(filepath.Base(a), "a-") {
-		t.Fatalf("missing worktree basename: %s", a)
-	}
+	require.Equal(t, a, WorktreeHome(root, "/repo/worktrees/a"), "not deterministic")
+	require.NotEqual(t, a, WorktreeHome(root, "/repo/worktrees/b"), "collision")
+	require.True(t, strings.HasPrefix(filepath.Base(a), "a-"), "missing worktree basename: %s", a)
 }
 
 func TestWorktreeHomeResolvesSymlink(t *testing.T) {
 	root := t.TempDir()
 	worktree := filepath.Join(root, "actual-worktree")
-	if err := os.Mkdir(worktree, 0755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Mkdir(worktree, 0755))
 	link := filepath.Join(root, "worktree-link")
-	if err := os.Symlink(worktree, link); err != nil {
-		t.Fatal(err)
-	}
-	if got, want := WorktreeHome(filepath.Join(root, "clients"), link), WorktreeHome(filepath.Join(root, "clients"), worktree); got != want {
-		t.Fatalf("symlink home = %q, want %q", got, want)
-	}
+	require.NoError(t, os.Symlink(worktree, link))
+	require.Equal(t,
+		WorktreeHome(filepath.Join(root, "clients"), worktree),
+		WorktreeHome(filepath.Join(root, "clients"), link),
+		"a symlinked worktree must resolve to the same home")
 }
 func TestResolvePaths(t *testing.T) {
 	p := ResolvePaths("/tmp/chat-home")
-	if p.State != filepath.Join(p.Home, "state.json") || p.Cursors != filepath.Join(p.Home, "cursors.json") || p.Lock != filepath.Join(p.Home, ".lock") {
-		t.Fatalf("unexpected paths: %+v", p)
-	}
+	require.Equal(t, filepath.Join(p.Home, "state.json"), p.State)
+	require.Equal(t, filepath.Join(p.Home, "cursors.json"), p.Cursors)
+	require.Equal(t, filepath.Join(p.Home, ".lock"), p.Lock)
 }

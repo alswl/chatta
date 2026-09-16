@@ -3,6 +3,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -13,7 +14,7 @@ import (
 	"github.com/alswl/chatta/pkg/dal"
 )
 
-func (m *ChatService) Health(deep bool) common.HealthReport {
+func (m *ChatService) Health(ctx context.Context, deep bool) common.HealthReport {
 	st := m.State
 	if loaded, err := dal.LoadState(m.StatePath); err == nil {
 		st = loaded
@@ -33,7 +34,7 @@ func (m *ChatService) Health(deep bool) common.HealthReport {
 		r.Failure = "supervisor is not running"
 		return r
 	}
-	resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
+	resp, err := daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
 	if err != nil || !resp.OK || resp.Status == nil {
 		r.Failure = "transport not connected"
 		if resp.Error != "" {
@@ -93,7 +94,7 @@ func fileSize(path string) int64 {
 	return info.Size()
 }
 
-func (m *ChatService) Ensure() (common.ChatSession, error) {
+func (m *ChatService) Ensure(ctx context.Context) (common.ChatSession, error) {
 	st, err := dal.LoadState(m.StatePath)
 	if err != nil {
 		if migration := preUpgradeMigrationMessage(m.Home, err); migration != "" {
@@ -108,7 +109,7 @@ func (m *ChatService) Ensure() (common.ChatSession, error) {
 	m.Paths = dal.ResolvePaths(m.Home)
 	needsRecovery := !dal.IsVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint)
 	if !needsRecovery {
-		resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
+		resp, err := daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
 		needsRecovery = err != nil || !resp.OK
 	}
 	if needsRecovery {
@@ -131,7 +132,7 @@ func (m *ChatService) Ensure() (common.ChatSession, error) {
 	}
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		resp, err := daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
+		resp, err := daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "status"})
 		if err == nil && resp.OK && resp.Status != nil && resp.Status.Registered && dal.IsVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint) {
 			return st, nil
 		}

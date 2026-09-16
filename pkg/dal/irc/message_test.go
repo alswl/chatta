@@ -5,6 +5,8 @@ package irc
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseLine(t *testing.T) {
@@ -58,19 +60,19 @@ func TestParseLine(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got, ok := ParseLine(tc.line)
-			if ok != tc.wantOK {
-				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
-			}
+			require.Equal(t, tc.wantOK, ok)
 			if !ok {
 				return
 			}
-			if got.Prefix != tc.want.Prefix || got.Command != tc.want.Command || got.Trailing != tc.want.Trailing || len(got.Params) != len(tc.want.Params) {
-				t.Fatalf("got %+v, want %+v", got, tc.want)
-			}
+			require.Equal(t, tc.want.Prefix, got.Prefix)
+			require.Equal(t, tc.want.Command, got.Command)
+			require.Equal(t, tc.want.Trailing, got.Trailing)
+			// Len before elementwise: the fixtures leave Params unset where
+			// a line carries none, and a nil slice and an empty one are the
+			// same thing to every caller here.
+			require.Len(t, got.Params, len(tc.want.Params))
 			for i := range got.Params {
-				if got.Params[i] != tc.want.Params[i] {
-					t.Fatalf("param %d: got %q, want %q", i, got.Params[i], tc.want.Params[i])
-				}
+				require.Equal(t, tc.want.Params[i], got.Params[i], "param %d", i)
 			}
 		})
 	}
@@ -78,20 +80,14 @@ func TestParseLine(t *testing.T) {
 
 func TestFormatLineRoundTrips(t *testing.T) {
 	line := FormatLine("PRIVMSG", "#agents", "hello world")
-	if line != "PRIVMSG #agents :hello world" {
-		t.Fatalf("unexpected line: %q", line)
-	}
+	require.Equal(t, "PRIVMSG #agents :hello world", line)
 	msg, ok := ParseLine(line)
-	if !ok || msg.Command != "PRIVMSG" || msg.Params[0] != "#agents" || msg.Params[1] != "hello world" {
-		t.Fatalf("round trip failed: %+v (%v)", msg, ok)
-	}
+	require.True(t, ok, "round trip failed")
+	require.Equal(t, "PRIVMSG", msg.Command)
+	require.Equal(t, []string{"#agents", "hello world"}, msg.Params)
 }
 
 func TestNick(t *testing.T) {
-	if got := Nick("agent-a!u@h"); got != "agent-a" {
-		t.Fatalf("got %q", got)
-	}
-	if got := Nick("server.example"); got != "server.example" {
-		t.Fatalf("got %q", got)
-	}
+	require.Equal(t, "agent-a", Nick("agent-a!u@h"))
+	require.Equal(t, "server.example", Nick("server.example"))
 }

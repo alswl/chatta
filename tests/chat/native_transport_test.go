@@ -3,6 +3,7 @@
 package chat_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -17,6 +18,8 @@ import (
 	"github.com/alswl/chatta/pkg/config"
 	"github.com/alswl/chatta/pkg/dal"
 	"github.com/alswl/chatta/pkg/services"
+
+	"github.com/stretchr/testify/require"
 )
 
 // shortHome returns a temp directory short enough that <home>/control.sock
@@ -25,9 +28,7 @@ import (
 func shortHome(t *testing.T, label string) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "cthome")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return filepath.Join(dir, label)
 }
@@ -40,10 +41,8 @@ func newSession(t *testing.T, binary string, port int, home, nick string) *servi
 	m := services.NewChatService(config.ChatConfig{Home: home, Host: "127.0.0.1", Port: port, Channel: "#agents"})
 	m.Executable = binary
 	m.OwnerLookup = func() (common.OwnerBinding, error) { return owner, nil }
-	if err := m.Start(nick, "smoke", false); err != nil {
-		t.Fatalf("start %s: %v", nick, err)
-	}
-	t.Cleanup(func() { _ = m.Stop(true) })
+	require.NoError(t, m.Start(context.Background(), nick, "smoke", false), "start %s", nick)
+	t.Cleanup(func() { _ = m.Stop(context.Background(), true) })
 	return m
 }
 
@@ -58,15 +57,9 @@ func TestNativeTransportChannelMessageCrossesBetweenSessions(t *testing.T) {
 
 	first := newSession(t, binary, port, shortHome(t, "first"), "smoke-one")
 	second := newSession(t, binary, port, shortHome(t, "second"), "smoke-two")
-	if err := first.Join("smoke-work"); err != nil {
-		t.Fatal(err)
-	}
-	if err := second.Join("smoke-work"); err != nil {
-		t.Fatal(err)
-	}
-	if err := first.Send("#smoke-work", "channel hello"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, first.Join(context.Background(), "smoke-work"))
+	require.NoError(t, second.Join(context.Background(), "smoke-work"))
+	require.NoError(t, first.Send(context.Background(), "#smoke-work", "channel hello"))
 	waitForMessage(t, second, "channel hello")
 }
 
@@ -81,13 +74,10 @@ func TestNativeTransportDirectMessageAttribution(t *testing.T) {
 
 	first := newSession(t, binary, port, shortHome(t, "first"), "smoke-one")
 	second := newSession(t, binary, port, shortHome(t, "second"), "smoke-two")
-	if err := first.DM("smoke-two", "private hello"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, first.DM(context.Background(), "smoke-two", "private hello"))
 	line := waitForMessage(t, second, "private hello")
-	if !strings.Contains(line, "(DM)") || !strings.Contains(line, "<smoke-one>") {
-		t.Fatalf("direct message not attributed to sender: %q", line)
-	}
+	require.Contains(t, line, "(DM)", "direct message not attributed to sender")
+	require.Contains(t, line, "<smoke-one>", "direct message not attributed to sender")
 }
 
 func TestNativeTransportNonASCIIDeliveredByteIdentical(t *testing.T) {
@@ -101,16 +91,10 @@ func TestNativeTransportNonASCIIDeliveredByteIdentical(t *testing.T) {
 
 	first := newSession(t, binary, port, shortHome(t, "first"), "smoke-one")
 	second := newSession(t, binary, port, shortHome(t, "second"), "smoke-two")
-	if err := first.Join("smoke-work"); err != nil {
-		t.Fatal(err)
-	}
-	if err := second.Join("smoke-work"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, first.Join(context.Background(), "smoke-work"))
+	require.NoError(t, second.Join(context.Background(), "smoke-work"))
 	want := "你好，世界 — こんにちは"
-	if err := first.Send("#smoke-work", want); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, first.Send(context.Background(), "#smoke-work", want))
 	waitForMessage(t, second, want)
 }
 
@@ -124,34 +108,26 @@ func TestNativeTransportRecoversAfterServerRestart(t *testing.T) {
 
 	first := newSession(t, binary, port, shortHome(t, "first"), "smoke-one")
 	second := newSession(t, binary, port, shortHome(t, "second"), "smoke-two")
-	if err := first.Join("smoke-work"); err != nil {
-		t.Fatal(err)
-	}
-	if err := second.Join("smoke-work"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, first.Join(context.Background(), "smoke-work"))
+	require.NoError(t, second.Join(context.Background(), "smoke-work"))
 
 	stopCommand(server)
 	deadline := time.Now().Add(8 * time.Second)
 	var lastFailure string
 	for time.Now().Before(deadline) {
-		r := first.Health(false)
+		r := first.Health(context.Background(), false)
 		if r.Failure != "" {
 			lastFailure = r.Failure
 			break
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	if lastFailure == "" {
-		t.Fatal("health did not report a failure after the server went down")
-	}
+	require.NotEmpty(t, lastFailure, "health did not report a failure after the server went down")
 
 	server = startServer(t, port)
 	t.Cleanup(func() { stopCommand(server) })
 
-	if err := first.Send("#smoke-work", "recovered hello"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, first.Send(context.Background(), "#smoke-work", "recovered hello"))
 	waitForMessage(t, second, "recovered hello")
 }
 
@@ -160,10 +136,8 @@ func waitForMessage(t *testing.T, m *services.ChatService, want string) string {
 	deadline := time.Now().Add(15 * time.Second)
 	var seen []string
 	for time.Now().Before(deadline) {
-		lines, err := m.Poll(false)
-		if err != nil {
-			t.Fatal(err)
-		}
+		lines, err := m.Poll(context.Background(), false)
+		require.NoError(t, err)
 		seen = append(seen, lines...)
 		for _, line := range lines {
 			if strings.Contains(line, want) {
@@ -179,9 +153,7 @@ func waitForMessage(t *testing.T, m *services.ChatService, want string) string {
 func freePort(t *testing.T) int {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer listener.Close()
 	return listener.Addr().(*net.TCPAddr).Port
 }
@@ -190,13 +162,9 @@ func startServer(t *testing.T, port int) *exec.Cmd {
 	t.Helper()
 	configPath := filepath.Join(t.TempDir(), "ngircd.conf")
 	contents := fmt.Sprintf("[Global]\nName = smoke.local\nListen = 127.0.0.1\nPorts = %d\n[Limits]\nMaxConnectionsIP = 50\n[Options]\nDNS = false\nIdent = false\n", port)
-	if err := os.WriteFile(configPath, []byte(contents), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(configPath, []byte(contents), 0o600))
 	cmd := exec.Command("ngircd", "--nodaemon", "--config", configPath)
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, cmd.Start())
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		connection, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 100*time.Millisecond)
@@ -214,15 +182,12 @@ func startServer(t *testing.T, port int) *exec.Cmd {
 func buildChatta(t *testing.T) string {
 	t.Helper()
 	rootOut, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	binary := filepath.Join(t.TempDir(), "chatta")
 	build := exec.Command("go", "build", "-o", binary, "./cmd/chatta")
 	build.Dir = strings.TrimSpace(string(rootOut))
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build chatta: %v\n%s", err, output)
-	}
+	output, err := build.CombinedOutput()
+	require.NoError(t, err, "build chatta: %s", output)
 	return binary
 }
 
@@ -253,15 +218,11 @@ func TestNativeTransportAnnouncesDepartureWhenOwnerExits(t *testing.T) {
 	binary := buildChatta(t)
 
 	watcher := newSession(t, binary, port, shortHome(t, "watcher"), "smoke-one")
-	if err := watcher.Join("smoke-work"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, watcher.Join(context.Background(), "smoke-work"))
 
 	// A session whose owner is a process this test can actually end.
 	owner := exec.Command("sleep", "300")
-	if err := owner.Start(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, owner.Start())
 	t.Cleanup(func() { _ = owner.Process.Kill() })
 	pid := owner.Process.Pid
 	leaving := services.NewChatService(config.ChatConfig{Home: shortHome(t, "leaving"), Host: "127.0.0.1", Port: port, Channel: "#agents"})
@@ -269,22 +230,15 @@ func TestNativeTransportAnnouncesDepartureWhenOwnerExits(t *testing.T) {
 	leaving.OwnerLookup = func() (common.OwnerBinding, error) {
 		return common.OwnerBinding{PID: pid, StartFingerprint: dal.ProcessStart(pid), Runtime: "test"}, nil
 	}
-	if err := leaving.Start("smoke-two", "smoke", false); err != nil {
-		t.Fatalf("start smoke-two: %v", err)
-	}
-	t.Cleanup(func() { _ = leaving.Stop(true) })
-	if err := leaving.Join("smoke-work"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, leaving.Start(context.Background(), "smoke-two", "smoke", false), "start smoke-two")
+	t.Cleanup(func() { _ = leaving.Stop(context.Background(), true) })
+	require.NoError(t, leaving.Join(context.Background(), "smoke-work"))
 
-	if err := owner.Process.Kill(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, owner.Process.Kill())
 	// Reap it: an unwaited child stays a zombie, and a zombie still answers
 	// kill -0, so the supervisor would never see the owner leave.
 	_ = owner.Wait()
 	line := waitForMessage(t, watcher, "signing off")
-	if !strings.Contains(line, "<smoke-two>") || !strings.Contains(line, "[STATUS]") {
-		t.Fatalf("departure not announced as a tagged status from the leaver: %q", line)
-	}
+	require.Contains(t, line, "<smoke-two>", "departure not announced from the leaver")
+	require.Contains(t, line, "[STATUS]", "departure not announced as a tagged status")
 }

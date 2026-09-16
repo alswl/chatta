@@ -3,6 +3,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,7 +15,7 @@ import (
 	"github.com/alswl/chatta/pkg/dal"
 )
 
-func (m *ChatService) Stop(force bool) error {
+func (m *ChatService) Stop(ctx context.Context, force bool) error {
 	st, err := dal.LoadState(m.StatePath)
 	if err != nil {
 		return err
@@ -25,7 +26,7 @@ func (m *ChatService) Stop(force bool) error {
 			return fmt.Errorf("this client belongs to another live agent; use --force after confirmation")
 		}
 	}
-	_, _ = daemon.Request(m.Paths.ControlSock, daemon.ControlRequest{Op: "quit", Reason: "leaving"})
+	_, _ = daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "quit", Reason: "leaving"})
 	if st.SupervisorPID > 0 {
 		if err := dal.StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint); err != nil {
 			return err
@@ -36,7 +37,7 @@ func (m *ChatService) Stop(force bool) error {
 	return dal.SaveState(m.StatePath, st)
 }
 
-func (m *ChatService) Survey() ([]common.ClientSurvey, error) {
+func (m *ChatService) Survey(ctx context.Context) ([]common.ClientSurvey, error) {
 	rows := make([]common.ClientSurvey, 0)
 	for _, home := range m.clientHomes() {
 		path := filepath.Join(home, "state.json")
@@ -54,7 +55,7 @@ func (m *ChatService) Survey() ([]common.ClientSurvey, error) {
 		}
 		clientState := "down"
 		paths := dal.ResolvePaths(home)
-		if resp, err := daemon.Request(paths.ControlSock, daemon.ControlRequest{Op: "status"}); err == nil && resp.OK && resp.Status != nil && resp.Status.Connected {
+		if resp, err := daemon.Request(ctx, paths.ControlSock, daemon.ControlRequest{Op: "status"}); err == nil && resp.OK && resp.Status != nil && resp.Status.Connected {
 			clientState = "alive"
 		}
 		eligibility := "live owner"
@@ -108,14 +109,25 @@ func withinRoot(path, root string) bool {
 	return path == root || strings.HasPrefix(path, root+string(filepath.Separator))
 }
 
-func (m *ChatService) GC(dryRun, prune bool) (string, error) {
-	rows, err := m.Survey()
-	if err != nil {
-		return "", err
-	}
+// GC renders what GCReport returns. Both perform the cleanup, so a caller
+// picks one or the other.
+func (m *ChatService) GC(ctx context.Context, dryRun, prune bool) (string, error) {
+	rows, err := m.GCReport(ctx, dryRun, prune)
 	var b strings.Builder
 	for _, row := range rows {
 		_, _ = fmt.Fprintf(&b, "%s: %s (%s)\n", row.SessionSummary, row.ClientProcessState, row.CleanupEligibility)
+	}
+	return b.String(), err
+}
+
+// GCReport performs the cleanup and returns the clients it considered, in
+// the order it considered them.
+func (m *ChatService) GCReport(ctx context.Context, dryRun, prune bool) ([]common.ClientSurvey, error) {
+	rows, err := m.Survey(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
 		if dryRun {
 			continue
 		}
@@ -128,16 +140,16 @@ func (m *ChatService) GC(dryRun, prune bool) (string, error) {
 		}
 		if st.SupervisorPID > 0 {
 			if err := dal.StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint); err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 		if prune {
 			if err := os.RemoveAll(row.ClientHome); err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 	}
-	return b.String(), nil
+	return rows, nil
 }
 
 func (m *ChatService) SaveSurvey(path string, rows []common.ClientSurvey) error {
