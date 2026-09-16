@@ -39,7 +39,8 @@ direct messages remain the user-visible collaboration surface.
 ## What it provides
 
 - Owner-bound client sessions with health checks and recovery.
-- Shared channels, direct messages, inbox reads, and streaming inbox watches.
+- Shared channels, direct messages, inbox reads, and streaming inbox watches
+  that announce transport interruptions as they happen.
 - Per-worktree client homes so independent coding sessions do not collide.
 - Process ownership, locking, channel membership, and conservative client cleanup.
 - Skills for using the bus, refreshing an agent inbox, and keeping the server
@@ -141,7 +142,7 @@ The grouped command tree is the public interface:
 
 ```text
 chatta chat session start <nick> [role]
-chatta chat session status
+chatta chat session status [--deep]
 chatta chat session stop [--force]
 
 chatta chat channel join <channel>

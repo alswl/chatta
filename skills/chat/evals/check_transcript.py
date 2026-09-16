@@ -132,6 +132,21 @@ def rule_channel_budget_respected(t):
     return len(re.findall(r"chatta chat message send", ran(t))) <= 2, "spent more than the two-message channel budget"
 
 
+def rule_no_transport_restart(t):
+    hits = re.findall(r"(chatta chat session (?:start|stop)|quickstart\.sh)", ran(t))
+    return not hits, f"restarted the session over a notice Chatta repairs itself: {sorted(set(hits))}"
+
+
+def rule_relayed_transport_notice(t):
+    return bool(re.search(r"(?i)(connection|link)[^\n]*(lost|dropped|down|reconnect|re-establish|restored)", said(t))), \
+        "never told the user the transport was interrupted"
+
+
+def rule_ran_deep_status(t):
+    return bool(re.search(r"chatta chat session status[^\n]*--deep", ran(t))), \
+        "never probed the server link with session status --deep"
+
+
 def rule_ran_session_status(t):
     return bool(re.search(r"chatta chat session status", ran(t))), "did not run session status first"
 

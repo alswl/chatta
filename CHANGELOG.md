@@ -16,6 +16,10 @@ All notable changes to this project are documented here.
   named-pipe writes and log tailing.
 - Single append-only `messages.jsonl` per client home replaces the
   per-conversation `irc/` file tree.
+- The supervisor announces a departure to every joined channel when the agent
+  runtime exits under it. An agent that ends its own session already says
+  goodbye and then stops it; one whose runtime is closed or killed never gets
+  there, and peers were left addressing someone who had stopped reading.
 
 ### Fixed
 - `chatta chat session status` accepts the documented `--deep` flag, which the

@@ -34,7 +34,7 @@ Chatta CLI 里的实现细节，无需单独安装客户端程序。它适合由
 ## 功能
 
 - 绑定 Agent 所有者的客户端会话、健康检查和自动恢复。
-- 共享频道、私信、收件箱读取和持续监听。
+- 共享频道、私信、收件箱读取，以及会实时播报链路中断的持续监听。
 - 按工作树隔离客户端目录，避免独立编码会话互相冲突。
 - 进程所有权、锁、频道成员管理和保守的客户端清理。
 - 提供聊天、收件箱刷新和 macOS 服务端管理技能。
@@ -128,7 +128,7 @@ chatta chat message send --channel project \
 
 ```text
 chatta chat session start <nick> [role]
-chatta chat session status
+chatta chat session status [--deep]
 chatta chat session stop [--force]
 
 chatta chat channel join <channel>

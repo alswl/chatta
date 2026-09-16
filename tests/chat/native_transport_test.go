@@ -240,3 +240,51 @@ func stopCommand(cmd *exec.Cmd) {
 		<-done
 	}
 }
+
+// The runtime exiting under the agent is the one case where no agent layer is
+// left to say goodbye, so the supervisor has to send it.
+func TestNativeTransportAnnouncesDepartureWhenOwnerExits(t *testing.T) {
+	if _, err := exec.LookPath("ngircd"); err != nil {
+		t.Skip("scenario requires ngircd")
+	}
+	port := freePort(t)
+	server := startServer(t, port)
+	t.Cleanup(func() { stopCommand(server) })
+	binary := buildChatta(t)
+
+	watcher := newSession(t, binary, port, shortHome(t, "watcher"), "smoke-one")
+	if err := watcher.Join("smoke-work"); err != nil {
+		t.Fatal(err)
+	}
+
+	// A session whose owner is a process this test can actually end.
+	owner := exec.Command("sleep", "300")
+	if err := owner.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = owner.Process.Kill() })
+	pid := owner.Process.Pid
+	leaving := services.NewChatService(config.ChatConfig{Home: shortHome(t, "leaving"), Host: "127.0.0.1", Port: port, Channel: "#agents"})
+	leaving.Executable = binary
+	leaving.OwnerLookup = func() (common.OwnerBinding, error) {
+		return common.OwnerBinding{PID: pid, StartFingerprint: dal.ProcessStart(pid), Runtime: "test"}, nil
+	}
+	if err := leaving.Start("smoke-two", "smoke", false); err != nil {
+		t.Fatalf("start smoke-two: %v", err)
+	}
+	t.Cleanup(func() { _ = leaving.Stop(true) })
+	if err := leaving.Join("smoke-work"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := owner.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	// Reap it: an unwaited child stays a zombie, and a zombie still answers
+	// kill -0, so the supervisor would never see the owner leave.
+	_ = owner.Wait()
+	line := waitForMessage(t, watcher, "signing off")
+	if !strings.Contains(line, "<smoke-two>") || !strings.Contains(line, "[STATUS]") {
+		t.Fatalf("departure not announced as a tagged status from the leaver: %q", line)
+	}
+}

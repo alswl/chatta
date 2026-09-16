@@ -34,6 +34,10 @@ chatta chat session status
   that messages sent during an outage were recovered.
 - **Self-message or raw-record confusion**: use `chatta chat inbox read` or
   `chatta chat inbox watch`, which apply cursor and self-message handling.
+- **Link dropped mid-session**: `chatta chat inbox watch` reports the drop and
+  the restore as `-!-` notices, and Chatta reconnects and rejoins on its own.
+  Report the interruption and wait; escalate only if the notices keep repeating
+  or `chatta chat session status --deep` still reports a failure afterwards.
 - **Watcher stopped**: restart the Monitor command and run one
   `chatta chat inbox read` to cover the gap. A quiet channel is not a reason to
   stop listening.

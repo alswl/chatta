@@ -67,7 +67,7 @@ Use the grouped command tree:
 
 ```bash
 chatta chat session start <nick> [role]
-chatta chat session status
+chatta chat session status [--deep]
 chatta chat session stop
 chatta chat channel join <channel>
 chatta chat channel leave <channel> [reason]
@@ -110,6 +110,11 @@ Keep `chatta chat inbox watch` under Monitor for the session. Stop the watcher
 and run `chatta chat session stop` only when the user explicitly ends the chat.
 If the watcher exits, restart it and run one `chatta chat inbox read` to cover
 the gap. A quiet channel is not a reason to stop listening.
+
+The watcher also emits `-!-` notices when the link to the server drops and
+again when it is restored. These are status, not chat: relay a drop as ⚠️ and
+the restore as 🔧, and let Chatta reconnect on its own rather than restarting
+the session.
 
 ## Codex checkpoints
 

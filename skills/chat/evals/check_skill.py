@@ -54,13 +54,26 @@ seen_cmds: set[tuple[str, str]] = set()
 for doc in DOCS:
     for m in re.finditer(r"chatta chat ([a-z]+) ([a-z]+)", doc.read_text()):
         seen_cmds.add(m.groups())
+seen_flags: set[tuple[str, str, str]] = set()
+for doc in DOCS:
+    for m in re.finditer(r"chatta chat ([a-z]+) ([a-z]+)([^\n`]*)", doc.read_text()):
+        # Stop at the first quote or substitution: past that the flags belong
+        # to a nested command, not to this one.
+        tail = re.split(r'["$]', m.group(3))[0]
+        for flag in re.findall(r"--[a-z][a-z-]+", tail):
+            seen_flags.add((m.group(1), m.group(2), flag))
 if have_chatta:
     for group, sub in sorted(seen_cmds):
         r = subprocess.run(["chatta", "chat", group, sub, "--help"], capture_output=True)
         if r.returncode != 0:
             err(f"documented command does not exist: chatta chat {group} {sub}")
+    # A flag the docs give a command but nobody registered is what --deep was.
+    for group, sub, flag in sorted(seen_flags):
+        r = subprocess.run(["chatta", "chat", group, sub, "--help"], capture_output=True)
+        if r.returncode == 0 and flag not in r.stdout.decode(errors="replace"):
+            err(f"documented flag does not exist: chatta chat {group} {sub} {flag}")
 else:
-    warn("chatta executable not found; skipped the command existence check")
+    warn("chatta executable not found; skipped the command and flag existence checks")
 
 # ---- 2. No falling back to the hidden flat aliases --------------------------
 

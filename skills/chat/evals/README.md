@@ -4,7 +4,7 @@ One case set, one rubric, three deterministic checkers, one driver.
 
 | File | What it does |
 |---|---|
-| `evals.json` | 10 behaviour cases: prompt, expected behaviour, machine-decided `checks`, human-scored `expectations` |
+| `evals.json` | 12 behaviour cases: prompt, expected behaviour, machine-decided `checks`, human-scored `expectations` |
 | `rubric.md` | L1/L2 scoring and the regression baseline |
 | `check_skill.py` | L1a: static checks on the skill files (command existence, aliases, paths, language, layout) |
 | `check_quickstart.sh` | L1c: eight scenarios against `assets/quickstart.sh`, no model needed |

@@ -498,6 +498,7 @@ func (m *ChatService) supervise() error {
 			case <-ticker.C:
 				if !dal.ProcessAlive(st.Owner) {
 					log.Info("owner process ended; stopping supervisor")
+					announceDeparture(conn, st.Nick, log)
 					_ = conn.Quit("owner exited")
 					_ = conn.Close()
 					ticker.Stop()
@@ -526,3 +527,18 @@ func (m *ChatService) supervise() error {
 
 // RunSupervisor is called by the hidden CLI command.
 func (m *ChatService) RunSupervisor() error { return m.supervise() }
+
+// announceDeparture sends the goodbye the agent runtime no longer can: an
+// agent ending its own session says one first, but one whose runtime exits
+// under it never gets the chance, leaving peers to address someone who
+// stopped reading. It has to be a PRIVMSG -- a bare QUIT carries no tag and
+// so never reaches a peer's inbox -- and it must not delay the QUIT that
+// follows, so nothing here waits for confirmation.
+func announceDeparture(conn *irc.Conn, nick string, log *slog.Logger) {
+	text := fmt.Sprintf("[STATUS] %s -> all: my session ended; signing off.", nick)
+	for _, channel := range conn.Channels() {
+		if err := conn.Privmsg(channel, text); err != nil {
+			log.Warn("failed to announce departure", "channel", channel, "error", err)
+		}
+	}
+}
