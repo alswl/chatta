@@ -17,6 +17,21 @@ All notable changes to this project are documented here.
 - Single append-only `messages.jsonl` per client home replaces the
   per-conversation `irc/` file tree.
 
+### Fixed
+- `chatta chat session status` accepts the documented `--deep` flag, which the
+  command never registered even though the check behind it existed.
+- A session that fails to start reports why — the refused address, the rejected
+  nick, the control socket it could not bind — instead of a generic timeout
+  after 20 seconds, and no longer leaves a half-started session behind.
+- A nick the server rejects as malformed or too long is no longer reported as
+  one that is already taken, which sent users to pick another name of the same
+  length rather than a shorter one.
+- Health reports an unusable link. A frozen or half-open server used to leave
+  the connection looking established indefinitely, so `session status` answered
+  green while no message could arrive.
+- `chatta chat inbox watch` announces the connection dropping and coming back
+  rather than going quiet through the interruption.
+
 ### Miscellaneous
 - `--ii` / `CHATTA_CHAT_II` / `AGENT_CHAT_II` are still accepted for
   compatibility but ignored, with a one-time deprecation notice on stderr.
