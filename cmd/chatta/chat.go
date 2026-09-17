@@ -6,8 +6,8 @@ import (
 )
 
 var (
-	chatHome, chatHost, chatChannel, chatII string
-	chatPort                                int
+	chatHome, chatHost, chatChannel string
+	chatPort                        int
 )
 
 var chatCmd = &cobra.Command{
@@ -22,10 +22,6 @@ func init() {
 	flags.StringVar(&chatHost, "host", "", "chat server host")
 	flags.IntVar(&chatPort, "port", 0, "chat server port")
 	flags.StringVar(&chatChannel, "channel", "", "home channel")
-	// Not pflag's MarkDeprecated: that prints its own warning, and the
-	// contract allows exactly one deprecation line on stderr (FR-010),
-	// which config emits for the flag and both env aliases alike.
-	flags.StringVar(&chatII, "ii", "", "deprecated: ignored — chatta no longer shells out to ii")
 	rootCmd.AddCommand(chatCmd)
 }
 
