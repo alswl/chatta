@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.4.1] - 2026-09-17
+
+### Miscellaneous
+- Derive release draft body from changelog
+
 ## [0.4.0] - 2026-09-17
 
 ### Features
