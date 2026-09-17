@@ -57,6 +57,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -64,9 +65,20 @@ jobs:
       - name: Generate checksums
         working-directory: dist
         run: sha256sum *.tar.gz > checksums.txt
+      - name: Extract changelog section
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          version="${version%%-*}"
+          awk -v ver="$version" \
+            '$0 ~ "^## \\[" ver "\\]" { found=1; next } found && /^## \[/ { exit } found { print }' \
+            CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/master/CHANGELOG.md)." > release-notes.md
+          fi
+          cat release-notes.md
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
-          generate_release_notes: true
+          body_path: release-notes.md
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: dist/*
