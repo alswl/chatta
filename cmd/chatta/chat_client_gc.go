@@ -18,7 +18,7 @@ func collectGarbage(cmd *cobra.Command, _ []string) error {
 	prune, _ := cmd.Flags().GetBool("prune")
 	if wantsJSON(cmd) {
 		rows, err := newChatService().GCReport(cmd.Context(), dry, prune)
-		if jsonErr := emitJSON(cmd, rows); jsonErr != nil {
+		if jsonErr := emitJSONList(cmd, rows); jsonErr != nil {
 			return jsonErr
 		}
 		return err

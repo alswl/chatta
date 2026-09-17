@@ -16,7 +16,7 @@ func readInbox(cmd *cobra.Command, _ []string) error {
 	all, _ := cmd.Flags().GetBool("all")
 	if wantsJSON(cmd) {
 		msgs, err := newChatService().PollMessages(cmd.Context(), all)
-		if jsonErr := emitJSON(cmd, msgs); jsonErr != nil {
+		if jsonErr := emitJSONList(cmd, msgs); jsonErr != nil {
 			return jsonErr
 		}
 		return err

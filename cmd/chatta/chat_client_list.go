@@ -13,7 +13,7 @@ func newListCmd(use, short string, hidden bool) *cobra.Command {
 func listClients(cmd *cobra.Command, _ []string) error {
 	rows, err := newChatService().Survey(cmd.Context())
 	if wantsJSON(cmd) {
-		if jsonErr := emitJSON(cmd, rows); jsonErr != nil {
+		if jsonErr := emitJSONList(cmd, rows); jsonErr != nil {
 			return jsonErr
 		}
 		return err
