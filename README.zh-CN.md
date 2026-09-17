@@ -4,32 +4,28 @@
 [![最新版本](https://img.shields.io/github/v/release/alswl/chatta)](https://github.com/alswl/chatta/releases)
 [![Go 1.22+](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 
+**一个 Go CLI，让你的多个编码 Agent 会话通过本地 IRC 总线互相对话。**
+
 [English](README.md)
 
-Chatta 是一个 Go CLI 和本地消息总线，用于协调多个编码 Agent 会话。它提供
-一组简洁、可脚本化的命令，用于宣布工作、加入项目频道、发送私信、读取收件箱，
-以及恢复属于当前会话的客户端。
-
-传输层保持本地化：Chatta 自己在进程内实现 IRC 客户端协议，并使用
-[`ngircd`](https://ngircd.barton.de/) 作为共享消息总线。IRC 客户端是内建在
-Chatta CLI 里的实现细节，无需单独安装客户端程序。它适合由同一用户
-控制的 Agent，在同一台机器或受信任的私有局域网中协作；不是公共聊天服务，也不
-是带认证的 Agent-to-Agent 协议替代品。
+同时跑多个编码 Agent 时，它们各自摸黑干活。Chatta 提供一组简洁、可脚本化的
+命令，用于宣布工作、加入项目频道、发送私信、读取收件箱，以及恢复属于当前会话的
+客户端——让一个 Agent 可以把工作交接给另一个，而不是重复劳动。
 
 <img width="960" src="docs/chat-architecture.svg" alt="Chatta 本地 Agent 协作工作原理图">
 
 *用户视角：打开会话、发送消息，然后查看收件箱。*
 
-## 核心概念和部署
-
-- `chatta CLI` 是用户操作入口，负责会话、频道、私信和收件箱。
-- IRC 是消息模型；`ngircd` 提供本地 IRC 服务端，Chatta 自己在进程内实现连接它
-  所需的客户端协议。
-- 在 macOS 上，[`chatta-admin`](skills/chatta-admin/SKILL.md) 会把服务端安装为用户级
-  `launchd` 服务，使本地 IRC 总线在终端关闭和重新登录后继续运行。
-
-默认部署只监听本机 `127.0.0.1:6667`。同一台机器上的多个 Agent 会话共享这条总线，
-用户实际接触到的是频道、私信和收件箱。
+- [功能](#功能)
+- [前置依赖](#前置依赖)
+- [快速开始](#快速开始)
+- [安装](#安装)
+- [命令概览](#命令概览)
+- [配置](#配置)
+- [工作原理](#工作原理)
+- [技能和文档](#技能和文档)
+- [信任边界](#信任边界)
+- [开发](#开发)
 
 ## 功能
 
@@ -39,6 +35,54 @@ Chatta CLI 里的实现细节，无需单独安装客户端程序。它适合由
 - 进程所有权、锁、频道成员管理和保守的客户端清理。
 - 默认输出人类可读形式，所有输出数据的命令都支持 `--json`。
 - 提供聊天、收件箱刷新和 macOS 服务端管理技能。
+
+## 前置依赖
+
+每台参与协作的主机需要一个 IRC 服务端——Chatta 使用
+[`ngircd`](https://ngircd.barton.de/) 作为共享消息总线。客户端部分已内建在
+Chatta 里，无需单独安装传输程序：
+
+```sh
+# macOS + Homebrew
+brew install ngircd
+```
+
+Linux 请使用发行版对应的包管理器安装等价软件。Chatta 只检查这些依赖，
+不会自动安装系统软件。
+
+## 快速开始
+
+安装 CLI：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh
+```
+
+使用仓库内置配置启动本地服务器，并让它在一个终端中持续运行：
+
+```sh
+mkdir -p "$HOME/.irc-agent"
+cp assets/ngircd-agent-chat.conf "$HOME/.irc-agent/ngircd.conf"
+ngircd --configtest --config "$HOME/.irc-agent/ngircd.conf"
+ngircd --nodaemon --config "$HOME/.irc-agent/ngircd.conf"
+```
+
+再在另一个终端启动客户端会话：
+
+```sh
+chatta chat session start agent-a "project coordination"
+chatta chat session status
+chatta chat channel join project
+chatta chat message send --channel project \
+  '[HELLO] agent-a -> all: ready to coordinate.'
+```
+
+让第二个 Agent 加入同一个频道，两者就可以互相收发消息了。
+
+> [!TIP]
+> 如果需要由 macOS `launchd` 持久管理服务器，请使用
+> [chatta-admin 技能](skills/chatta-admin/SKILL.md)。它会校验配置、安装用户级
+> 服务，并让 `ngircd` 在终端关闭和重新登录后继续运行。
 
 ## 安装
 
@@ -66,11 +110,13 @@ curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh
 指定版本或安装目录：
 
 ```sh
-CHATTA_VERSION=v0.1.0 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
+CHATTA_VERSION=v0.4.1 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
   sh -c 'curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh'
 ```
 
 ### 从源码构建
+
+需要 Go 1.22 或更高版本。
 
 ```sh
 git clone https://github.com/alswl/chatta.git
@@ -80,56 +126,13 @@ go install ./cmd/chatta
 
 仓库也提供 `make build` 和 `make install` 目标。
 
-## 前置依赖
-
-`chat` 命令要求每台参与协作的主机安装 IRC 服务端。客户端部分已内建在 Chatta
-里，无需单独安装传输程序：
-
-```sh
-# macOS + Homebrew
-brew install ngircd
-```
-
-Linux 请使用发行版对应的包管理器安装等价软件。Chatta 只检查这些依赖，
-不会自动安装系统软件。
-
-> **从旧版本 Chatta 升级**：升级前启动的会话依赖外部 `ii` 客户端，与新的
-> 进程内传输不兼容。升级后请重启一次现有会话——
-> `chatta chat session stop --force && chatta chat session start <nick>`——
-> 之后即可卸载 `ii`。
-
-## 快速开始
-
-使用仓库内置配置启动本地服务器：
-
-```sh
-mkdir -p "$HOME/.irc-agent"
-cp assets/ngircd-agent-chat.conf "$HOME/.irc-agent/ngircd.conf"
-ngircd --configtest --config "$HOME/.irc-agent/ngircd.conf"
-ngircd --nodaemon --config "$HOME/.irc-agent/ngircd.conf"
-```
-
-让服务器在一个终端中运行，再在另一个终端启动客户端会话：
-
-```sh
-chatta chat session start agent-a "project coordination"
-chatta chat session status
-chatta chat channel join project
-chatta chat message send --channel project \
-  '[HELLO] agent-a -> all: ready to coordinate.'
-```
-
-如果需要由 macOS `launchd` 持久管理服务器，请使用
-[chatta-admin 技能](skills/chatta-admin/SKILL.md)。它会校验配置、安装用户级
-服务，并让 `ngircd` 在终端关闭和重新登录后继续运行。
-
 ## 命令概览
 
 分组命令树是公开接口：
 
 ```text
 chatta chat session start <nick> [role]
-chatta chat session status [--deep] [--json]
+chatta chat session status [--deep=false] [--json]
 chatta chat session stop [--force]
 
 chatta chat channel join <channel>
@@ -147,7 +150,8 @@ chatta chat client gc [--dry-run] [--prune] [--json]
 ```
 
 输出数据的命令都接受 `--json`，返回同一份结果的机器可读形式；不加则输出上面的
-人类可读形式。
+人类可读形式。`session status` 默认会探测服务端链路，只想检查本地客户端时传
+`--deep=false`。
 
 一次典型的协作流程：
 
@@ -184,6 +188,17 @@ chatta chat session stop
 旧版 `AGENT_CHAT_*` 环境变量仍作为迁移别名支持。全局 `--config` 可以指定其他
 配置文件，`--verbose` 用于开启详细诊断输出。
 
+## 工作原理
+
+- `chatta CLI` 是用户操作入口，负责会话、频道、私信和收件箱。
+- IRC 是消息模型；`ngircd` 提供本地 IRC 服务端，Chatta 自己在进程内实现连接它
+  所需的客户端协议——这是内建的实现细节，不是需要单独安装的程序。
+- 在 macOS 上，[`chatta-admin`](skills/chatta-admin/SKILL.md) 会把服务端安装为用户级
+  `launchd` 服务，使本地 IRC 总线在终端关闭和重新登录后继续运行。
+
+默认部署只监听本机 `127.0.0.1:6667`。同一台机器上的多个 Agent 会话共享这条总线，
+用户实际接触到的是频道、私信和收件箱。
+
 ## 技能和文档
 
 - [`docs/chat.md`](docs/chat.md) — 操作指南和信任边界。
@@ -194,14 +209,18 @@ chatta chat session stop
   管理 `ngircd` 服务端。
 - [`assets/ngircd-agent-chat.conf`](assets/ngircd-agent-chat.conf) — 默认的仅监听
   loopback 地址的服务端配置。
+- [`CHANGELOG.md`](CHANGELOG.md) — 版本变更记录，由 `git-cliff` 生成。
 
 ## 信任边界
 
-内置服务端配置没有密码和 TLS，默认只监听 `127.0.0.1`。如果把 `Listen` 改为
-局域网地址，所有能访问 `6667` 端口的主机都可以读取和发送消息。
+> [!WARNING]
+> 内置服务端配置没有密码和 TLS，默认只监听 `127.0.0.1`。如果把 `Listen` 改为
+> 局域网地址，所有能访问 `6667` 端口的主机都可以读取和发送消息。不要把这套配置
+> 暴露到公网或不受信任的网络。
 
-不要把这套配置暴露到公网或不受信任的网络。它不是 A2A：没有认证身份、能力发现、
-结构化任务生命周期，也没有跨组织安全模型。
+Chatta 面向由同一用户控制的 Agent，在同一台机器或受信任的私有局域网中协作，
+不是公共聊天服务。它也不是 A2A：没有认证身份、能力发现、结构化任务生命周期，
+也没有跨组织安全模型。
 
 重启服务端会影响本机上的所有 Agent 会话。IRC 不会重放中断期间发送的消息，
 因此重启前应先说明影响。
