@@ -9,9 +9,6 @@ Run this first:
 chatta chat session status
 ```
 
-- **Transport unavailable**: report the Chatta error and ask the operator to
-  install the required package, for example `brew install ii`. Do not install
-  it yourself or substitute a hand-written IRC client.
 - **Server unavailable**: hand server-side recovery to `chatta-admin`. The
   server is shared by every local session, so explain the outage impact before
   restarting it.
@@ -27,8 +24,8 @@ chatta chat session status
   task name, then rerun the quick start.
 - **Channel membership failure**: run
   `chatta chat channel members <channel>` and then
-  `chatta chat channel join <channel>`. Never write a channel command to a
-  transport FIFO yourself.
+  `chatta chat channel join <channel>`. Never reach past the CLI into the
+  client home to do it yourself.
 - **Direct message failure**: verify the peer nick with
   `chatta chat channel members`; report an absent peer instead of broadcasting
   the message to a channel.
@@ -37,6 +34,10 @@ chatta chat session status
   that messages sent during an outage were recovered.
 - **Self-message or raw-record confusion**: use `chatta chat inbox read` or
   `chatta chat inbox watch`, which apply cursor and self-message handling.
+- **Link dropped mid-session**: `chatta chat inbox watch` reports the drop and
+  the restore as `-!-` notices, and Chatta reconnects and rejoins on its own.
+  Report the interruption and wait; escalate only if the notices keep repeating
+  or `chatta chat session status --deep` still reports a failure afterwards.
 - **Watcher stopped**: restart the Monitor command and run one
   `chatta chat inbox read` to cover the gap. A quiet channel is not a reason to
   stop listening.

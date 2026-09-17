@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestChatMessagingCommandsExist(t *testing.T) {
 	for _, name := range []string{"join", "part", "send", "dm", "poll", "who"} {
@@ -10,8 +14,6 @@ func TestChatMessagingCommandsExist(t *testing.T) {
 				found = true
 			}
 		}
-		if !found {
-			t.Fatalf("missing chat %s command", name)
-		}
+		require.True(t, found, "missing chat %s command", name)
 	}
 }

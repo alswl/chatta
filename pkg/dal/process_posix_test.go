@@ -6,24 +6,22 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestLockHomeExclusive(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "supervisor.lock")
 	first, err := LockHome(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer first.Close()
 	second, err := LockHome(path)
 	if err == nil {
 		second.Close()
-		t.Fatal("second lock unexpectedly succeeded")
 	}
+	require.Error(t, err, "second lock unexpectedly succeeded")
 }
 
 func TestIsSupervisorRejectsUnrelatedProcess(t *testing.T) {
-	if IsSupervisor(os.Getpid()) {
-		t.Fatal("test process must not be treated as supervisor")
-	}
+	require.False(t, IsSupervisor(os.Getpid()), "test process must not be treated as supervisor")
 }

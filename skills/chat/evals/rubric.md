@@ -14,8 +14,8 @@ Case score = L1 all green (otherwise 0) x the sum of the five L2 dimensions
 
 ## What L1 covers
 
-`check_skill.py`: every `chatta chat` command in the docs exists, no falling
-back to the hidden flat aliases, referenced `references/` and `assets/` paths
+`check_skill.py`: every `chatta chat` command in the docs exists and carries
+every flag the docs give it, no falling back to the hidden flat aliases, referenced `references/` and `assets/` paths
 are present, SKILL.md links every reference, the whole skill is in English,
 inline code never breaks across lines, the frontmatter is complete, and
 `quickstart.sh` is executable and syntactically valid.
@@ -28,7 +28,9 @@ client another live session left behind is taken over.
 
 `check_transcript.py`: which commands ran this turn, whether the user was asked
 anything before connecting, whether `inbox watch` went under Monitor, whether
-the agent installed anything or seized someone else's client.
+the agent installed anything or seized someone else's client, and whether a
+`-!-` transport notice was relayed as status rather than answered with a
+restart.
 
 ## L2 dimensions
 
@@ -95,6 +97,6 @@ Watch these first:
 3. **Leaving when its own task ends** -- reading "I'm done here" as a signal to sign off (case 4).
 4. **Shouting what should be a DM** -- especially questions and assignments (cases 3, 9).
 5. **Seizing a healthy client** -- reaching for `--takeover` on "already on this path" (case 7).
-6. **Installing dependencies** -- `brew install` when ii is missing, or improvising another IRC path (case 6).
+6. **Installing dependencies** -- `brew install` when ngircd is missing, or improvising another IRC path (case 6).
 7. **Dumping the raw log** -- pasting `inbox read` output at the user (case 8).
 8. **Blind restarts** -- repeating `session start` instead of reading what `session status` says broke (case 10).

@@ -11,11 +11,12 @@ It gives agents a small, scriptable interface for announcing work, joining
 project channels, sending direct messages, reading inboxes, and recovering
 their own client sessions.
 
-The transport is intentionally local: Chatta manages an installed IRC client
-transport and uses [`ngircd`](https://ngircd.barton.de/) as the shared IRC bus.
-The transport client is an implementation detail of Chatta's CLI. It is designed for agents controlled by the same user on one machine
-or a trusted private LAN, not as a public chat service or a replacement for an
-authenticated agent-to-agent protocol.
+The transport is intentionally local: Chatta speaks IRC itself, in-process, and
+uses [`ngircd`](https://ngircd.barton.de/) as the shared IRC bus. The IRC
+client is a built-in implementation detail of Chatta's CLI — no separate
+client program to install. It is designed for agents controlled by the same
+user on one machine or a trusted private LAN, not as a public chat service or
+a replacement for an authenticated agent-to-agent protocol.
 
 <img width="960" src="docs/chat-architecture.svg" alt="Chatta local agent coordination architecture">
 
@@ -26,7 +27,7 @@ authenticated agent-to-agent protocol.
 - `chatta CLI` is the user-facing command surface for sessions, channels, direct
   messages, and inboxes.
 - IRC is the messaging model; `ngircd` provides the local IRC server and Chatta
-  manages the installed client transport that connects to it.
+  speaks the client side of the protocol itself, in-process.
 - On macOS, [`chatta-admin`](skills/chatta-admin/SKILL.md) installs the server as
   a user-level `launchd` service, so the local IRC bus survives terminal closes
   and user logins.
@@ -38,9 +39,12 @@ direct messages remain the user-visible collaboration surface.
 ## What it provides
 
 - Owner-bound client sessions with health checks and recovery.
-- Shared channels, direct messages, inbox reads, and streaming inbox watches.
+- Shared channels, direct messages, inbox reads, and streaming inbox watches
+  that announce transport interruptions as they happen.
 - Per-worktree client homes so independent coding sessions do not collide.
 - Process ownership, locking, channel membership, and conservative client cleanup.
+- Human-readable output by default, with `--json` on every command that
+  reports data.
 - Skills for using the bus, refreshing an agent inbox, and keeping the server
   alive on macOS.
 
@@ -88,18 +92,24 @@ The repository also provides `make build` and `make install` for local builds.
 
 ## Prerequisites
 
-The `chat` command currently requires an external IRC server and client
-transport on each participating host. Operators install them; agents operate
-the transport only through Chatta:
+The `chat` command requires an IRC server on each participating host.
+Operators install it; the client side is built into Chatta itself, so there is
+no separate transport program to install:
 
 ```sh
 # macOS with Homebrew
-brew install ngircd ii
+brew install ngircd
 ```
 
 On Linux, install equivalent packages using the host distribution's package
 manager. Chatta checks for these programs but does not install system
 dependencies.
+
+> **Migrating from an older Chatta**: sessions started before this version
+> spawned an external `ii` client and are incompatible with the new
+> in-process transport. Restart any existing session once —
+> `chatta chat session stop --force && chatta chat session start <nick>` —
+> after upgrading; `ii` itself can then be uninstalled.
 
 ## Quick start
 
@@ -134,22 +144,25 @@ The grouped command tree is the public interface:
 
 ```text
 chatta chat session start <nick> [role]
-chatta chat session status
+chatta chat session status [--deep] [--json]
 chatta chat session stop [--force]
 
 chatta chat channel join <channel>
 chatta chat channel leave <channel> [reason]
-chatta chat channel members [channel]
+chatta chat channel members [channel] [--json]
 
 chatta chat message send <text> [--channel <channel>]
 chatta chat message direct <nick> <text>
 
-chatta chat inbox read [--all]
+chatta chat inbox read [--all] [--json]
 chatta chat inbox watch
 
-chatta chat client list
-chatta chat client gc [--dry-run] [--prune]
+chatta chat client list [--json]
+chatta chat client gc [--dry-run] [--prune] [--json]
 ```
+
+Commands that report data take `--json` for a machine-readable form of the
+same result; without it they print the human form shown above.
 
 A typical exchange looks like this:
 
@@ -183,7 +196,6 @@ Chat settings use these variables and flags:
 | Server host | `CHATTA_CHAT_HOST` | `--host` | `127.0.0.1` |
 | Server port | `CHATTA_CHAT_PORT` | `--port` | `6667` |
 | Home channel | `CHATTA_CHAT_CHANNEL` | `--channel` | `#agents` |
-| Chatta-managed transport executable | `CHATTA_CHAT_II` | `--ii` | `ii` |
 
 Older `AGENT_CHAT_*` variables are accepted as migration aliases. The global
 `--config` flag selects a different config file, and `--verbose` enables
@@ -226,9 +238,8 @@ make check-skill
 ```
 
 The normal CI checks run Go build/tests, skill checks, and Go lint. The local
-quick-start scenarios additionally require working `ngircd`, the configured
-transport client, and a
-running Chatta binary:
+quick-start scenarios additionally require a working `ngircd` and a running
+Chatta binary:
 
 ```sh
 make check-skill-scenarios

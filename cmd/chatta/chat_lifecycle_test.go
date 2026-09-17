@@ -1,37 +1,34 @@
 package main
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestChatCommandExposesLifecycleCommands(t *testing.T) {
 	for _, name := range []string{"start", "health", "stop"} {
-		if chatCmd.Commands() == nil {
-			t.Fatal("chat command has no children")
-		}
+		require.NotEmpty(t, chatCmd.Commands(), "chat command has no children")
 		found := false
 		for _, child := range chatCmd.Commands() {
 			if child.Name() == name {
 				found = true
 			}
 		}
-		if !found {
-			t.Fatalf("missing chat %s command", name)
-		}
+		require.True(t, found, "missing chat %s command", name)
 	}
-	if supervisorCmd.Hidden != true {
-		t.Fatal("supervisor command must be hidden")
-	}
+	require.True(t, supervisorCmd.Hidden, "supervisor command must be hidden")
 }
 
-func TestIIFlagIsAdvancedChattaTransportConfiguration(t *testing.T) {
+func TestIIFlagIsDeprecated(t *testing.T) {
 	flag := chatCmd.PersistentFlags().Lookup("ii")
-	if flag == nil || !strings.Contains(flag.Usage, "Chatta-managed") {
-		t.Fatalf("ii flag does not describe Chatta ownership: %#v", flag)
-	}
+	require.NotNil(t, flag)
+	require.Contains(t, flag.Usage, "deprecated", "ii flag is not marked deprecated in its help text")
+	// pflag's own deprecation warning would be a second stderr line on top
+	// of the one config emits; the contract allows exactly one (FR-010).
+	require.Empty(t, flag.Deprecated, "ii flag must not carry pflag's deprecation notice")
 }
 
 func TestChatCommandExposesDomainCommandGroups(t *testing.T) {
@@ -51,16 +48,26 @@ func TestChatCommandExposesDomainCommandGroups(t *testing.T) {
 				groupFound = child
 			}
 		}
-		if !found {
-			t.Fatalf("missing chat %s command group", name)
-		}
+		require.True(t, found, "missing chat %s command group", name)
 		for _, command := range commands {
-			if _, _, err := groupFound.Find([]string{command}); err != nil {
-				t.Fatalf("missing chat %s %s command: %v", name, command, err)
-			}
+			_, _, err := groupFound.Find([]string{command})
+			require.NoError(t, err, "missing chat %s %s command", name, command)
 		}
 	}
-	if !startCmd.Hidden || !healthCmd.Hidden || !clientsCmd.Hidden {
-		t.Fatal("flat compatibility commands must stay hidden from the primary command tree")
+	for _, alias := range []string{"start", "health", "clients"} {
+		cmd, _, err := chatCmd.Find([]string{alias})
+		require.NoError(t, err, "missing flat compatibility command %s", alias)
+		require.True(t, cmd.Hidden,
+			"flat compatibility command %s must stay hidden from the primary command tree", alias)
+	}
+}
+
+// contracts/cli-commands.md freezes `session status [--deep]`; the flag was
+// accepted by the service layer but never wired to the command.
+func TestSessionStatusAcceptsDeepFlag(t *testing.T) {
+	for _, path := range [][]string{{"session", "status"}, {"health"}} {
+		cmd, _, err := chatCmd.Find(path)
+		require.NoError(t, err, "%v", path)
+		require.NotNil(t, cmd.Flags().Lookup("deep"), "%v does not expose --deep", path)
 	}
 }

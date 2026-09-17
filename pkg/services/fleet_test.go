@@ -1,23 +1,23 @@
 //go:build darwin || linux
 
-package managers
+package services
 
 import (
+	"context"
 	"testing"
 
 	"github.com/alswl/chatta/pkg/config"
 	"github.com/alswl/chatta/pkg/dal"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSurveyEmptyHome(t *testing.T) {
-	m := NewManager(config.ChatConfig{Home: t.TempDir()})
-	rows, err := m.Survey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rows) != 0 {
-		t.Fatalf("unexpected client rows: %+v", rows)
-	}
+	m := NewChatService(config.ChatConfig{Home: t.TempDir()})
+	rows, err := m.Survey(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, rows)
 }
 
 func TestSurveyFindsSiblingClientHomes(t *testing.T) {
@@ -27,15 +27,12 @@ func TestSurveyFindsSiblingClientHomes(t *testing.T) {
 	for _, home := range []string{current, other} {
 		state := testSession()
 		state.Nick = home[len(root)+1:]
-		if err := dal.SaveState(dal.ResolvePaths(home).State, state); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, dal.SaveState(dal.ResolvePaths(home).State, state))
 	}
-	m := NewManager(config.ChatConfig{Home: current})
-	rows, err := m.Survey()
-	if err != nil || len(rows) != 2 {
-		t.Fatalf("expected two homes, got %+v (%v)", rows, err)
-	}
+	m := NewChatService(config.ChatConfig{Home: current})
+	rows, err := m.Survey(context.Background())
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
 }
 
 func TestWithinRootRejectsSiblingPrefix(t *testing.T) {
@@ -50,8 +47,6 @@ func TestWithinRootRejectsSiblingPrefix(t *testing.T) {
 		{t.TempDir(), false},
 	}
 	for _, tc := range cases {
-		if got := withinRoot(tc.path, root); got != tc.want {
-			t.Errorf("withinRoot(%q, %q) = %t, want %t", tc.path, root, got, tc.want)
-		}
+		assert.Equal(t, tc.want, withinRoot(tc.path, root), "withinRoot(%q, %q)", tc.path, root)
 	}
 }

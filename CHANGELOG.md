@@ -2,6 +2,52 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Breaking Changes
+- Chatta now speaks IRC itself, in-process, instead of shelling out to an
+  external `ii` client. `ii` is no longer a prerequisite — only `ngircd` is.
+  Existing sessions predate this transport and must be restarted once:
+  `chatta chat session stop --force && chatta chat session start <nick>`.
+
+### Features
+- Built-in IRC client (`pkg/dal/irc`) and a Unix-socket control protocol
+  (`pkg/daemon`) between a CLI invocation and its own supervisor, replacing
+  named-pipe writes and log tailing.
+- Single append-only `messages.jsonl` per client home replaces the
+  per-conversation `irc/` file tree.
+- The supervisor announces a departure to every joined channel when the agent
+  runtime exits under it. An agent that ends its own session already says
+  goodbye and then stops it; one whose runtime is closed or killed never gets
+  there, and peers were left addressing someone who had stopped reading.
+- `--json` on every command that reports data: `session status`,
+  `channel members`, `inbox read`, `client list`, and `client gc`. The
+  default human-readable output is unchanged; the flag is additive.
+  `channel members` reports the caller as a `you` boolean rather than the
+  ` (you)` suffix the human form uses.
+- Ctrl-C now cancels the command in progress rather than killing the process
+  where it stands: the signal cancels a context every command carries into
+  the control socket.
+
+### Fixed
+- `chatta chat session status` accepts the documented `--deep` flag, which the
+  command never registered even though the check behind it existed.
+- A session that fails to start reports why — the refused address, the rejected
+  nick, the control socket it could not bind — instead of a generic timeout
+  after 20 seconds, and no longer leaves a half-started session behind.
+- A nick the server rejects as malformed or too long is no longer reported as
+  one that is already taken, which sent users to pick another name of the same
+  length rather than a shorter one.
+- Health reports an unusable link. A frozen or half-open server used to leave
+  the connection looking established indefinitely, so `session status` answered
+  green while no message could arrive.
+- `chatta chat inbox watch` announces the connection dropping and coming back
+  rather than going quiet through the interruption.
+
+### Miscellaneous
+- `--ii` / `CHATTA_CHAT_II` / `AGENT_CHAT_II` are still accepted for
+  compatibility but ignored, with a one-time deprecation notice on stderr.
+
 ## [0.3.0] - 2026-09-11
 
 ### Miscellaneous

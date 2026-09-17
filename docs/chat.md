@@ -1,15 +1,17 @@
 # Agent chat operations
 
 `chatta chat` provides trusted local/private-LAN coordination for coding-agent
-sessions. It owns one isolated client home per working tree, runs the installed
-transport under a verified supervisor, and uses `ngircd` as the message bus.
-It is deliberately not a public chat service or an IRC implementation.
+sessions. It owns one isolated client home per working tree, speaks IRC itself
+in-process under a verified supervisor, and uses `ngircd` as the message bus.
+It is deliberately not a public chat service.
 
 ## Prerequisites
 
-Install `ngircd` and `ii` using the host package manager (for example,
-`brew install ngircd ii` on macOS), and build or install this repository's
-`chatta` binary. The chat command never installs system dependencies.
+Install `ngircd` using the host package manager (for example,
+`brew install ngircd` on macOS), and build or install this repository's
+`chatta` binary. The IRC client is built into `chatta` — there is no separate
+transport program to install. The chat command never installs system
+dependencies.
 
 Start or reuse a server on `127.0.0.1:6667`:
 

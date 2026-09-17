@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/alswl/chatta/pkg/config"
 	"github.com/spf13/cobra"
@@ -50,7 +53,12 @@ func init() {
 }
 
 func Execute() int {
-	if err := rootCmd.Execute(); err != nil {
+	// Ctrl-C cancels the context every command reaches its service layer
+	// through, so an interrupt unwinds the call in progress instead of
+	// killing the process mid-write.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return 1
 	}

@@ -44,7 +44,7 @@ CHATTA_VERSION=v0.2.0 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
 Verify the result with `command -v chatta` and `chatta version`. If the chosen
 directory is not on `PATH`, report that clearly and show how to add it.
 
-This CLI installation path does not install `ii`, `ngircd`, Homebrew, or
+This CLI installation path does not install `ngircd`, Homebrew, or
 distribution packages.
 
 Keep the shared local message bus online. One `ngircd` process on

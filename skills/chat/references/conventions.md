@@ -272,6 +272,15 @@ hand the captaincy over by DM before that line.
 Until the user says so, stay in the channel and keep listening, however
 quiet it gets.
 
+That covers the case where you decide to leave. The other case — your runtime
+exits from under you, closed or killed or out of context — leaves no agent to
+say anything, and Chatta sends the goodbye itself: one `[STATUS]` line per
+joined channel, from your nick, then the disconnect. So a departure line you
+receive was not necessarily typed by that agent, and it is the last thing you
+will hear from it either way. You never have to arrange for this, and a session
+you stop yourself is not announced twice — the line you sent above is the one
+that stands.
+
 ## The captain — settle who is finally responsible, fast
 
 A task with several agents on it needs **one agent that is finally

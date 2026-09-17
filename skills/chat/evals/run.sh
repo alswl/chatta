@@ -79,7 +79,6 @@ start_test_server() {
 # Every branch ends deterministically: a pkill with nothing to kill exits 1,
 # which would otherwise read as a failed setup.
 setup_case() {
-  unset CHATTA_CHAT_II
   chatta chat session stop --force >/dev/null 2>&1
   rm -rf "$CHATTA_CHAT_HOME"
   mkdir -p "$CHATTA_CHAT_HOME"
@@ -93,9 +92,15 @@ setup_case() {
       start_test_server || return 1
       assets/quickstart.sh >/dev/null || return 1
       pkill -f _supervise >/dev/null 2>&1 || true ;;
-    no-ii)
-      export CHATTA_CHAT_II=/nonexistent/ii
-      start_test_server || return 1 ;;
+    no-ngircd)             # a real IRC client is built in now, so the only
+                            # installable dependency left is ngircd itself
+      pkill -f "ngircd-$CHATTA_CHAT_PORT.conf" >/dev/null 2>&1 || true
+      CASE_PATH=""
+      IFS=: read -ra dirs <<< "$PATH"
+      for d in "${dirs[@]}"; do
+        [ -x "$d/ngircd" ] && continue
+        CASE_PATH="${CASE_PATH:+$CASE_PATH:}$d"
+      done ;;
     peer-message)           # connected, with a peer DM and channel line waiting
       start_test_server || return 1
       assets/quickstart.sh >/dev/null || return 1
@@ -141,13 +146,14 @@ for id in $ids; do
 
   echo "" | tee -a "$OUT/report.txt"
   echo "=== case $id ($setup) ===" | tee -a "$OUT/report.txt"
+  CASE_PATH=""
   setup_case "$setup" || { echo "  [error] setup failed, skipping" | tee -a "$OUT/report.txt"; continue; }
 
   # stream-json so the transcript carries the actual tool calls: a reply that
   # only *mentions* a command must not read as having run it. Bash and the
   # chat commands are allowed explicitly -- a non-interactive session has no
   # way to ask for approval, and a blocked run looks like a passing one.
-  claude -p "$prompt" \
+  PATH="${CASE_PATH:-$PATH}" claude -p "$prompt" \
     --output-format stream-json --verbose \
     --allowedTools "Bash" "Monitor" "Read" "Glob" "Grep" "Skill" \
     < /dev/null > "$OUT/case-$id.json" 2>&1

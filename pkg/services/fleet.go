@@ -1,20 +1,21 @@
 //go:build darwin || linux
 
-package managers
+package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/alswl/chatta/integrations/ii"
 	"github.com/alswl/chatta/pkg/common"
+	"github.com/alswl/chatta/pkg/daemon"
 	"github.com/alswl/chatta/pkg/dal"
 )
 
-func (m *Manager) Stop(force bool) error {
+func (m *ChatService) Stop(ctx context.Context, force bool) error {
 	st, err := dal.LoadState(m.StatePath)
 	if err != nil {
 		return err
@@ -25,22 +26,18 @@ func (m *Manager) Stop(force bool) error {
 			return fmt.Errorf("this client belongs to another live agent; use --force after confirmation")
 		}
 	}
-	server := filepath.Join(m.Paths.Conversations, st.Host)
-	_ = ii.WriteFIFO(filepath.Join(server, "in"), "/q leaving", 0)
+	_, _ = daemon.Request(ctx, m.Paths.ControlSock, daemon.ControlRequest{Op: "quit", Reason: "leaving"})
 	if st.SupervisorPID > 0 {
 		if err := dal.StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint); err != nil {
 			return err
 		}
-	}
-	if err := ii.ReapStray(m.Paths.Conversations); err != nil {
-		return err
 	}
 	st.SupervisorPID = 0
 	st.SupervisorStartFingerprint = ""
 	return dal.SaveState(m.StatePath, st)
 }
 
-func (m *Manager) Survey() ([]common.ClientSurvey, error) {
+func (m *ChatService) Survey(ctx context.Context) ([]common.ClientSurvey, error) {
 	rows := make([]common.ClientSurvey, 0)
 	for _, home := range m.clientHomes() {
 		path := filepath.Join(home, "state.json")
@@ -57,23 +54,20 @@ func (m *Manager) Survey() ([]common.ClientSurvey, error) {
 			supervisorState = "alive"
 		}
 		clientState := "down"
-		if ii.FIFOReader(filepath.Join(home, "irc", st.Host, st.HomeChannel.Name, "in")) {
+		paths := dal.ResolvePaths(home)
+		if resp, err := daemon.Request(ctx, paths.ControlSock, daemon.ControlRequest{Op: "status"}); err == nil && resp.OK && resp.Status != nil && resp.Status.Connected {
 			clientState = "alive"
-		}
-		iiPIDs, _ := ii.PIDs(filepath.Join(home, "irc"))
-		if clientState == "down" && len(iiPIDs) > 0 {
-			clientState = "stray"
 		}
 		eligibility := "live owner"
 		if ownerState != "alive" {
 			eligibility = "owner ended"
 		}
-		rows = append(rows, common.ClientSurvey{ClientHome: filepath.Dir(path), SessionSummary: st.Nick, OwnerState: ownerState, SupervisorState: supervisorState, ClientProcessState: clientState, IIProcessCount: len(iiPIDs), CleanupEligibility: eligibility})
+		rows = append(rows, common.ClientSurvey{ClientHome: filepath.Dir(path), SessionSummary: st.Nick, OwnerState: ownerState, SupervisorState: supervisorState, ClientProcessState: clientState, CleanupEligibility: eligibility})
 	}
 	return rows, nil
 }
 
-func (m *Manager) clientHomes() []string {
+func (m *ChatService) clientHomes() []string {
 	roots := []string{m.Home, filepath.Dir(m.Home)}
 	if userHome, err := os.UserHomeDir(); err == nil {
 		agentRoot := filepath.Join(userHome, ".irc-agent")
@@ -115,54 +109,50 @@ func withinRoot(path, root string) bool {
 	return path == root || strings.HasPrefix(path, root+string(filepath.Separator))
 }
 
-func (m *Manager) GC(dryRun, prune bool) (string, error) {
-	rows, err := m.Survey()
-	if err != nil {
-		return "", err
-	}
+// GC renders what GCReport returns. Both perform the cleanup, so a caller
+// picks one or the other.
+func (m *ChatService) GC(ctx context.Context, dryRun, prune bool) (string, error) {
+	rows, err := m.GCReport(ctx, dryRun, prune)
 	var b strings.Builder
 	for _, row := range rows {
-		_, _ = fmt.Fprintf(&b, "%s: %s, ii=%d (%s)\n", row.SessionSummary, row.ClientProcessState, row.IIProcessCount, row.CleanupEligibility)
-		orphanII := row.SupervisorState != "alive" && row.IIProcessCount > 0
+		_, _ = fmt.Fprintf(&b, "%s: %s (%s)\n", row.SessionSummary, row.ClientProcessState, row.CleanupEligibility)
+	}
+	return b.String(), err
+}
+
+// GCReport performs the cleanup and returns the clients it considered, in
+// the order it considered them.
+func (m *ChatService) GCReport(ctx context.Context, dryRun, prune bool) ([]common.ClientSurvey, error) {
+	rows, err := m.Survey(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
 		if dryRun {
-			if orphanII {
-				b.WriteString("  would reap orphan ii process(es)\n")
-			}
+			continue
+		}
+		if row.CleanupEligibility == "live owner" {
 			continue
 		}
 		st, err := dal.LoadState(filepath.Join(row.ClientHome, "state.json"))
 		if err != nil {
 			continue
 		}
-		if orphanII {
-			if err := ii.ReapStray(filepath.Join(row.ClientHome, "irc")); err != nil {
-				return "", err
-			}
-			b.WriteString("  reaped orphan ii process(es)\n")
-		}
-		if row.CleanupEligibility == "live owner" {
-			continue
-		}
 		if st.SupervisorPID > 0 {
 			if err := dal.StopVerifiedSupervisor(st.SupervisorPID, st.SupervisorStartFingerprint); err != nil {
-				return "", err
-			}
-		}
-		if !orphanII {
-			if err := ii.ReapStray(filepath.Join(row.ClientHome, "irc")); err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 		if prune {
 			if err := os.RemoveAll(row.ClientHome); err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 	}
-	return b.String(), nil
+	return rows, nil
 }
 
-func (m *Manager) SaveSurvey(path string, rows []common.ClientSurvey) error {
+func (m *ChatService) SaveSurvey(path string, rows []common.ClientSurvey) error {
 	b, err := json.MarshalIndent(rows, "", "  ")
 	if err != nil {
 		return err

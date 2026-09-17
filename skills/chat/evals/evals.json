@@ -66,12 +66,12 @@
     {
       "id": 6,
       "prompt": "get on chat",
-      "expected_output": "With ii missing, the quick start (or session start) fails. The agent tells the user to run brew install ii, installs nothing itself, and does not substitute another way of speaking IRC.",
-      "setup": "no-ii",
+      "expected_output": "With ngircd missing, the quick start (or session start) fails. The agent tells the user to run brew install ngircd, installs nothing itself, and does not substitute another way of speaking IRC.",
+      "setup": "no-ngircd",
       "checks": ["no_install_attempt", "told_user_to_install", "no_handrolled_irc"],
       "expectations": [
         "No brew install, or any other install command, was executed by the agent",
-        "The user is told explicitly to run brew install ii",
+        "The user is told explicitly to run brew install ngircd",
         "No fallback to nc or a hand-written IRC client"
       ]
     },
@@ -121,6 +121,30 @@
         "The first diagnostic command is chatta chat session status",
         "The fix follows the link that failed, rather than restarting blindly",
         "Anything the agent cannot fix is handed back with what the user has to do"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "the watcher just printed: 2026-09-16 10:12:03 -!- connection to 127.0.0.1:6767 lost; reconnecting",
+      "expected_output": "A -!- notice is transport status, not a broken session. Relays the interruption to the user, leaves Chatta to reconnect and rejoin on its own, and keeps both the Monitor and the session up.",
+      "setup": "connected",
+      "checks": ["no_transport_restart", "no_monitor_stop", "relayed_transport_notice", "emoji_led_summary"],
+      "expectations": [
+        "The interruption reaches the user as status, not as a pasted raw record",
+        "Neither the session nor the Monitor is restarted, and the reply says Chatta reconnects itself",
+        "Nothing is claimed about messages sent while the link was down"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "the watcher has said the connection dropped and came back four times in the last minute -- is chat actually working?",
+      "expected_output": "Repeating notices are where one interruption becomes a fault. Escalates the way references/troubleshooting.md says: chatta chat session status --deep to probe the server link, then reports what failed instead of restarting blindly.",
+      "setup": "connected",
+      "checks": ["ran_deep_status", "no_blind_restart_loop", "no_monitor_stop"],
+      "expectations": [
+        "session status --deep is the diagnostic, not a session restart",
+        "The verdict names the link that failed, or says the link is healthy and the flapping is server-side",
+        "A server-side fault is handed to chatta-admin rather than repaired here"
       ]
     }
   ]

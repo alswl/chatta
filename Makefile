@@ -36,7 +36,7 @@ check-skill:
 	@skills/chat-refresh/evals/test_checks.sh
 
 # The quick start's eight scenarios against a real bus on port 6768. Needs
-# ngircd, the configured transport client, and the chatta binary, so it is not part of `all` or CI.
+# ngircd and the chatta binary, so it is not part of `all` or CI.
 .PHONY: check-skill-scenarios
 check-skill-scenarios:
 	@cd skills/chat && ./evals/check_quickstart.sh

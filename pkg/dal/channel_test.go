@@ -4,25 +4,19 @@ import (
 	"testing"
 
 	"github.com/alswl/chatta/pkg/common"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNormalizeChannel(t *testing.T) {
-	if got := NormalizeChannel(" Project/Alpha "); got != "#project-alpha" {
-		t.Fatalf("got %q", got)
-	}
-	if got := NormalizeChannel("#LOBBY"); got != "#lobby" {
-		t.Fatalf("got %q", got)
-	}
+	require.Equal(t, "#project-alpha", NormalizeChannel(" Project/Alpha "))
+	require.Equal(t, "#lobby", NormalizeChannel("#LOBBY"))
 }
 func TestChannelOrderingAndHomeProtection(t *testing.T) {
 	cs := []common.ChannelMembership{{Name: "#lobby"}, {Name: "#work"}}
-	if e := ValidateChannels(cs, "#lobby"); e != nil {
-		t.Fatal(e)
-	}
-	if e := CanPart("#lobby", "#lobby"); e == nil {
-		t.Fatal("home must be protected")
-	}
-	if e := ValidateChannels([]common.ChannelMembership{{Name: "#work"}, {Name: "#lobby"}}, "#lobby"); e == nil {
-		t.Fatal("home must be first")
-	}
+	require.NoError(t, ValidateChannels(cs, "#lobby"))
+	require.Error(t, CanPart("#lobby", "#lobby"), "home must be protected")
+	require.Error(t,
+		ValidateChannels([]common.ChannelMembership{{Name: "#work"}, {Name: "#lobby"}}, "#lobby"),
+		"home must be first")
 }
