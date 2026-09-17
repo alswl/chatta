@@ -1,6 +1,6 @@
 {
   "name": "chatta",
-  "version": "0.3.0-dev",
+  "version": "0.4.0",
   "description": "A Go CLI and local message bus for coordinating coding-agent sessions",
   "private": true,
   "repository": {
