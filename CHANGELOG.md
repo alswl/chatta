@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 
 ## [0.4.1] - 2026-09-17
 
-### Miscellaneous
+### Ci
 - Derive release draft body from changelog
 
 ## [0.4.0] - 2026-09-17
@@ -12,23 +12,10 @@ All notable changes to this project are documented here.
 ### Features
 - Speak IRC in-process, retiring the external ii client
 
-### Miscellaneous
-- Prepare next version v0.3.0-dev
-
-## [0.3.0] - 2026-09-11
-
-### Miscellaneous
-- Prepare next version v0.2.1-dev
-- Bump version to v0.3.0
-
 ## [0.2.1] - 2026-09-11
 
 ### Features
 - Install chatta through skills
-
-### Miscellaneous
-- Prepare next version v0.2.0-dev
-- Bump version to v0.2.1
 
 ## [0.2.0] - 2026-09-11
 
@@ -38,12 +25,6 @@ All notable changes to this project are documented here.
 ### Features
 - Add Codex inbox refresh skill
 - Add chatta-admin skill
-
-### Miscellaneous
-- Prepare next version v0.1.0-dev
-- Externalize private project specs
-- Externalize agent workflow files
-- Bump version to v0.2.0
 
 ## [0.1.0] - 2026-09-11
 
@@ -55,9 +36,6 @@ All notable changes to this project are documented here.
 
 ### Features
 - Add a no-questions quick start and evals to the chat skill
-
-### Miscellaneous
-- Bump version to v0.1.0
 
 ### Refactor
 - Split pkg/chat into layered dal/managers/services packages
