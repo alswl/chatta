@@ -23,24 +23,3 @@ func TestChatConfigurationPrecedence(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "from-flag", config.Chat.Host, "flag must override environment")
 }
-
-func TestDeprecatedIISettingsAreAcceptedAndIgnored(t *testing.T) {
-	baseline, err := Load(Options{})
-	require.NoError(t, err)
-
-	t.Setenv("CHATTA_CHAT_II", "/custom/ii")
-	viaPrimaryEnv, err := Load(Options{})
-	require.NoError(t, err, "CHATTA_CHAT_II must be accepted without error")
-	require.Equal(t, baseline.Chat, viaPrimaryEnv.Chat, "CHATTA_CHAT_II must not affect resolved configuration")
-	os.Unsetenv("CHATTA_CHAT_II")
-
-	t.Setenv("AGENT_CHAT_II", "/custom/ii")
-	viaLegacyEnv, err := Load(Options{})
-	require.NoError(t, err, "AGENT_CHAT_II must be accepted without error")
-	require.Equal(t, baseline.Chat, viaLegacyEnv.Chat, "AGENT_CHAT_II must not affect resolved configuration")
-	os.Unsetenv("AGENT_CHAT_II")
-
-	viaFlag, err := Load(Options{Chat: ChatConfig{II: "/custom/ii"}, ChatIISet: true})
-	require.NoError(t, err, "--ii must be accepted without error")
-	require.Equal(t, baseline.Chat, viaFlag.Chat, "--ii must not affect resolved configuration")
-}

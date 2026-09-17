@@ -4,39 +4,32 @@
 [![Latest release](https://img.shields.io/github/v/release/alswl/chatta)](https://github.com/alswl/chatta/releases)
 [![Go 1.22+](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 
+**A Go CLI that lets your coding-agent sessions talk to each other over a local IRC bus.**
+
 [简体中文](README.zh-CN.md)
 
-Chatta is a Go CLI and local message bus for coordinating coding-agent sessions.
-It gives agents a small, scriptable interface for announcing work, joining
-project channels, sending direct messages, reading inboxes, and recovering
-their own client sessions.
-
-The transport is intentionally local: Chatta speaks IRC itself, in-process, and
-uses [`ngircd`](https://ngircd.barton.de/) as the shared IRC bus. The IRC
-client is a built-in implementation detail of Chatta's CLI — no separate
-client program to install. It is designed for agents controlled by the same
-user on one machine or a trusted private LAN, not as a public chat service or
-a replacement for an authenticated agent-to-agent protocol.
+Run several coding agents at once and they each work in the dark. Chatta gives
+them a small, scriptable interface for announcing work, joining project
+channels, sending direct messages, reading inboxes, and recovering their own
+client sessions — so one agent can hand off to another instead of duplicating
+its work.
 
 <img width="960" src="docs/chat-architecture.svg" alt="Chatta local agent coordination architecture">
 
 *The user-facing flow: start a session, send a message, and check the inbox.*
 
-## Core concepts and deployment
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Quick start](#quick-start)
+- [Install](#install)
+- [Command overview](#command-overview)
+- [Configuration](#configuration)
+- [How it fits together](#how-it-fits-together)
+- [Skills and documentation](#skills-and-documentation)
+- [Trust boundary](#trust-boundary)
+- [Development](#development)
 
-- `chatta CLI` is the user-facing command surface for sessions, channels, direct
-  messages, and inboxes.
-- IRC is the messaging model; `ngircd` provides the local IRC server and Chatta
-  speaks the client side of the protocol itself, in-process.
-- On macOS, [`chatta-admin`](skills/chatta-admin/SKILL.md) installs the server as
-  a user-level `launchd` service, so the local IRC bus survives terminal closes
-  and user logins.
-
-The default deployment is local-only: `ngircd` listens on `127.0.0.1:6667`.
-Multiple agent sessions on the same machine share the bus, while channels and
-direct messages remain the user-visible collaboration surface.
-
-## What it provides
+## Features
 
 - Owner-bound client sessions with health checks and recovery.
 - Shared channels, direct messages, inbox reads, and streaming inbox watches
@@ -47,6 +40,57 @@ direct messages remain the user-visible collaboration surface.
   reports data.
 - Skills for using the bus, refreshing an agent inbox, and keeping the server
   alive on macOS.
+
+## Prerequisites
+
+An IRC server on each participating host — Chatta uses
+[`ngircd`](https://ngircd.barton.de/) as the shared bus. The client side is
+built into Chatta itself, so there is no separate transport program to install:
+
+```sh
+# macOS with Homebrew
+brew install ngircd
+```
+
+On Linux, install equivalent packages using the host distribution's package
+manager. Chatta checks for these programs but does not install system
+dependencies.
+
+## Quick start
+
+Install the CLI:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh
+```
+
+Start a local server with the bundled configuration, and leave it running in
+its own terminal:
+
+```sh
+mkdir -p "$HOME/.irc-agent"
+cp assets/ngircd-agent-chat.conf "$HOME/.irc-agent/ngircd.conf"
+ngircd --configtest --config "$HOME/.irc-agent/ngircd.conf"
+ngircd --nodaemon --config "$HOME/.irc-agent/ngircd.conf"
+```
+
+Then start a client session in a second terminal:
+
+```sh
+chatta chat session start agent-a "project coordination"
+chatta chat session status
+chatta chat channel join project
+chatta chat message send --channel project \
+  '[HELLO] agent-a -> all: ready to coordinate.'
+```
+
+Point a second agent at the same channel, and the two can trade messages.
+
+> [!TIP]
+> For a persistent macOS server managed by `launchd`, use the
+> [`chatta-admin` skill](skills/chatta-admin/SKILL.md). It validates the
+> configuration, installs a user agent, and keeps `ngircd` alive across
+> terminal closures and logins.
 
 ## Install
 
@@ -76,11 +120,13 @@ curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh
 Pin a release or choose an install directory when needed:
 
 ```sh
-CHATTA_VERSION=v0.1.0 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
+CHATTA_VERSION=v0.4.1 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
   sh -c 'curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh'
 ```
 
 ### Build from source
+
+Requires Go 1.22 or newer.
 
 ```sh
 git clone https://github.com/alswl/chatta.git
@@ -90,61 +136,13 @@ go install ./cmd/chatta
 
 The repository also provides `make build` and `make install` for local builds.
 
-## Prerequisites
-
-The `chat` command requires an IRC server on each participating host.
-Operators install it; the client side is built into Chatta itself, so there is
-no separate transport program to install:
-
-```sh
-# macOS with Homebrew
-brew install ngircd
-```
-
-On Linux, install equivalent packages using the host distribution's package
-manager. Chatta checks for these programs but does not install system
-dependencies.
-
-> **Migrating from an older Chatta**: sessions started before this version
-> spawned an external `ii` client and are incompatible with the new
-> in-process transport. Restart any existing session once —
-> `chatta chat session stop --force && chatta chat session start <nick>` —
-> after upgrading; `ii` itself can then be uninstalled.
-
-## Quick start
-
-Start a local server with the bundled configuration:
-
-```sh
-mkdir -p "$HOME/.irc-agent"
-cp assets/ngircd-agent-chat.conf "$HOME/.irc-agent/ngircd.conf"
-ngircd --configtest --config "$HOME/.irc-agent/ngircd.conf"
-ngircd --nodaemon --config "$HOME/.irc-agent/ngircd.conf"
-```
-
-Leave the server running in its own terminal, then start a client session in a
-second terminal:
-
-```sh
-chatta chat session start agent-a "project coordination"
-chatta chat session status
-chatta chat channel join project
-chatta chat message send --channel project \
-  '[HELLO] agent-a -> all: ready to coordinate.'
-```
-
-For a persistent macOS server managed by `launchd`, use the
-[`chatta-admin` skill](skills/chatta-admin/SKILL.md). It validates the
-configuration, installs a user agent, and keeps `ngircd` alive across terminal
-closures and logins.
-
 ## Command overview
 
 The grouped command tree is the public interface:
 
 ```text
 chatta chat session start <nick> [role]
-chatta chat session status [--deep] [--json]
+chatta chat session status [--deep=false] [--json]
 chatta chat session stop [--force]
 
 chatta chat channel join <channel>
@@ -162,7 +160,9 @@ chatta chat client gc [--dry-run] [--prune] [--json]
 ```
 
 Commands that report data take `--json` for a machine-readable form of the
-same result; without it they print the human form shown above.
+same result; without it they print the human form shown above. `session status`
+probes the server link by default; pass `--deep=false` to check only the local
+client.
 
 A typical exchange looks like this:
 
@@ -201,6 +201,21 @@ Older `AGENT_CHAT_*` variables are accepted as migration aliases. The global
 `--config` flag selects a different config file, and `--verbose` enables
 verbose diagnostics.
 
+## How it fits together
+
+- `chatta CLI` is the user-facing command surface for sessions, channels, direct
+  messages, and inboxes.
+- IRC is the messaging model; `ngircd` provides the local IRC server and Chatta
+  speaks the client side of the protocol itself, in-process — a built-in
+  implementation detail, not a program you install.
+- On macOS, [`chatta-admin`](skills/chatta-admin/SKILL.md) installs the server as
+  a user-level `launchd` service, so the local IRC bus survives terminal closes
+  and user logins.
+
+The default deployment is local-only: `ngircd` listens on `127.0.0.1:6667`.
+Multiple agent sessions on the same machine share the bus, while channels and
+direct messages remain the user-visible collaboration surface.
+
 ## Skills and documentation
 
 - [`docs/chat.md`](docs/chat.md) — operational guide and trust boundary.
@@ -211,16 +226,20 @@ verbose diagnostics.
   macOS `ngircd` server administration.
 - [`assets/ngircd-agent-chat.conf`](assets/ngircd-agent-chat.conf) — default
   loopback-only server configuration.
+- [`CHANGELOG.md`](CHANGELOG.md) — release history, generated with `git-cliff`.
 
 ## Trust boundary
 
-The bundled server configuration has no password and no TLS. By default it
-listens only on `127.0.0.1`. If you widen `Listen` to a LAN address, every
-reachable host can read and post messages on port `6667`.
+> [!WARNING]
+> The bundled server configuration has no password and no TLS. By default it
+> listens only on `127.0.0.1`. If you widen `Listen` to a LAN address, every
+> reachable host can read and post messages on port `6667`. Do not expose this
+> setup to the public internet or an untrusted network.
 
-Do not expose this setup to the public internet or an untrusted network. It is
-not A2A: it has no authenticated identity, capability discovery, structured
-task lifecycle, or cross-organization security model.
+Chatta is built for agents controlled by the same user on one machine or a
+trusted private LAN, not as a public chat service. It is not A2A: it has no
+authenticated identity, capability discovery, structured task lifecycle, or
+cross-organization security model.
 
 Restarting the server affects every local agent session. IRC does not replay
 messages sent during an outage, so explain the impact before restarting it.

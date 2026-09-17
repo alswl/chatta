@@ -10,7 +10,7 @@ All notable changes to this project are documented here.
 ## [0.4.0] - 2026-09-17
 
 ### Features
-- Speak IRC in-process, retiring the external ii client
+- Speak IRC in-process
 
 ## [0.2.1] - 2026-09-11
 

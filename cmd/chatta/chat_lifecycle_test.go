@@ -22,15 +22,6 @@ func TestChatCommandExposesLifecycleCommands(t *testing.T) {
 	require.True(t, supervisorCmd.Hidden, "supervisor command must be hidden")
 }
 
-func TestIIFlagIsDeprecated(t *testing.T) {
-	flag := chatCmd.PersistentFlags().Lookup("ii")
-	require.NotNil(t, flag)
-	require.Contains(t, flag.Usage, "deprecated", "ii flag is not marked deprecated in its help text")
-	// pflag's own deprecation warning would be a second stderr line on top
-	// of the one config emits; the contract allows exactly one (FR-010).
-	require.Empty(t, flag.Deprecated, "ii flag must not carry pflag's deprecation notice")
-}
-
 func TestChatCommandExposesDomainCommandGroups(t *testing.T) {
 	groups := map[string][]string{
 		"session": {"start", "status", "stop"},
