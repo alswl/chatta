@@ -24,8 +24,8 @@ chatta chat session status
   task name, then rerun the quick start.
 - **Channel membership failure**: run
   `chatta chat channel members <channel>` and then
-  `chatta chat channel join <channel>`. Never write a channel command to a
-  transport FIFO yourself.
+  `chatta chat channel join <channel>`. Never reach past the CLI into the
+  client home to do it yourself.
 - **Direct message failure**: verify the peer nick with
   `chatta chat channel members`; report an absent peer instead of broadcasting
   the message to a channel.
