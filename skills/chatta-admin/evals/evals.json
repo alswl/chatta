@@ -43,6 +43,26 @@
         "The destructive scope is made explicit.",
         "The launchd job is unloaded before the plist is removed."
       ]
+    },
+    {
+      "id": 5,
+      "prompt": "The chatta command is missing on this Linux arm64 machine. Install the CLI without changing the system chat server.",
+      "expected_output": "Checks for chatta, uses the official checksummed release installer, verifies the installed version and PATH, and does not attempt Homebrew or launchd administration.",
+      "checks": ["checks_cli", "uses_release_installer", "verifies_version", "no_server_install"],
+      "expectations": [
+        "Uses the supported Linux CLI installation path.",
+        "Reports PATH issues clearly and keeps server packages under operator control."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "The server uses CHATTA_IRC_ADMIN_HOME=/tmp/sample-chat-server. Configure persistence using the existing ngircd.conf without overwriting it, then locate startup errors.",
+      "expected_output": "Validates the existing configuration, renders the plist using the same server home, verifies the rendered paths, and checks the stderr log from the loaded plist.",
+      "checks": ["preserves_existing_config", "uses_admin_home", "matching_plist_paths", "reads_active_stderr"],
+      "expectations": [
+        "Does not confuse CHATTA_CHAT_HOME (client state) with CHATTA_IRC_ADMIN_HOME (server configuration).",
+        "The validated config is the one launchd runs; diagnostics use the actual stderr path."
+      ]
     }
   ]
 }

@@ -4,7 +4,7 @@ One case set, one rubric, three deterministic checkers, one driver.
 
 | File | What it does |
 |---|---|
-| `evals.json` | 12 behaviour cases: prompt, expected behaviour, machine-decided `checks`, human-scored `expectations` |
+| `evals.json` | 14 behaviour cases: prompt, expected behaviour, machine-decided `checks`, human-scored `expectations` |
 | `rubric.md` | L1/L2 scoring and the regression baseline |
 | `check_skill.py` | L1a: static checks on the skill files (command existence, aliases, paths, language, layout) |
 | `check_quickstart.sh` | L1c: eight scenarios against `assets/quickstart.sh`, no model needed |
@@ -35,3 +35,8 @@ under `$TMPDIR`. Neither touches the real `127.0.0.1:6667` bus.
   that study exposed -- S8 caught a real bug the first time it ran.
 - L1 only answers "did it do that". L2 answers "was it any good". Passing L1 is
   not passing.
+
+The Codex checkpoint and structured status cases are 13 and 14.
+`make check-skill` also tests synthetic transcripts and deliberately incorrect
+variants through `skills/evals/check_transcripts.py`. These checks validate
+the graders; they are not model benchmark results.

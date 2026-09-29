@@ -55,7 +55,7 @@ def rule_no_flat_aliases(t):
 
 def rule_no_raw_fifo_writes(t):
     hit = re.search(r">\s*[^\n]*irc/[^\n]*/in\b", ran(t))
-    return not (hit and "/t " not in t), "wrote to an in FIFO directly, bypassing the wrapper"
+    return not hit, "wrote to an in FIFO directly, bypassing Chatta"
 
 
 def rule_used_grouped_members(t):
@@ -91,7 +91,7 @@ def rule_no_install_attempt(t):
 
 
 def rule_told_user_to_install(t):
-    return bool(re.search(r"brew install (ii|ngircd)", said(t))), "never told the user what to install"
+    return bool(re.search(r"brew install ngircd", said(t))), "never told the user what to install"
 
 
 def rule_no_handrolled_irc(t):
@@ -116,7 +116,7 @@ def rule_used_inbox_read(t):
 
 
 def rule_no_raw_dump(t):
-    return len(re.findall(r"^SAY: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ", t, re.M)) <= 3, \
+    return len(re.findall(r"^SAY: \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ", t, re.M)) == 0, \
         "dumped raw IRC log lines at the user"
 
 
@@ -153,6 +153,19 @@ def rule_ran_session_status(t):
 
 def rule_no_blind_restart_loop(t):
     return len(re.findall(r"chatta chat session start", ran(t))) <= 2, "restarted blindly more than twice"
+
+
+def rule_no_monitor_or_watch(t):
+    return not re.search(r"\bMonitor\b|chatta chat inbox watch", ran(t)), "started push watching in Codex"
+
+
+def rule_single_inbox_read(t):
+    count = len(re.findall(r"chatta chat inbox read\b", ran(t)))
+    return count == 1, f"expected one cursor-consuming read, got {count}"
+
+
+def rule_ran_json_status(t):
+    return bool(re.search(r"chatta chat session status[^\n]*--json", ran(t))), "did not use structured status"
 
 
 RULES = {name[5:]: fn for name, fn in list(globals().items()) if name.startswith("rule_")}

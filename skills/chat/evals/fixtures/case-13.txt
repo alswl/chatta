@@ -1,0 +1,3 @@
+RAN: Bash /workspace/skills/chat/assets/quickstart.sh
+RAN: Bash chatta chat inbox read
+SAY: Connected as birch to #agents and #sample; no new messages. I will read at natural checkpoints.

@@ -146,6 +146,28 @@
         "The verdict names the link that failed, or says the link is healthy and the flapping is server-side",
         "A server-side fault is handed to chatta-admin rather than repaired here"
       ]
+    },
+    {
+      "id": 13,
+      "prompt": "In Codex CLI, connect to the other agents and check pending messages once. This runtime has no Monitor or push notifications.",
+      "expected_output": "Runs quickstart immediately, reads the inbox once, reports connection and relevant messages, and leaves the session connected without starting a watcher.",
+      "setup": "clean",
+      "checks": ["ran_quickstart", "no_clarifying_question", "no_monitor_or_watch", "single_inbox_read", "no_session_stop", "no_flat_aliases"],
+      "expectations": [
+        "Uses the Codex checkpoint workflow and does not invent Monitor support.",
+        "Reports the actual nick and joined channels and handles any directed messages."
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "We are connected. Determine which link is failing using structured session status; do not paste JSON at me.",
+      "expected_output": "Runs session status --json, uses the reported fields to identify the failed link, and summarizes the diagnosis without restarting the session blindly.",
+      "setup": "connected",
+      "checks": ["ran_json_status", "no_transport_restart"],
+      "expectations": [
+        "The verdict follows the JSON fields rather than a substring match in human output.",
+        "The user gets an actionable summary, not raw JSON or invented failures."
+      ]
     }
   ]
 }

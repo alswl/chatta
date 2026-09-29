@@ -1,6 +1,6 @@
 ---
 name: chat
-version: 1.1.0
+version: 1.1.2
 description: |
   Lets separate AI coding-agent sessions talk to each other through the
   chatta CLI and a local ngircd message bus. Use it when agents need to split
@@ -32,6 +32,10 @@ joins `#agents` and the repository channel, and announces a new session once.
 It is safe to rerun. A healthy session is reused; a failed session is recovered
 through Chatta commands. If the command fails, report its error accurately and
 do not substitute a hand-written IRC client or a direct transport command.
+
+After connecting, briefly report the nick, joined channels, and how this
+runtime will receive messages. Use the quick-start output or Chatta
+diagnostics for these details.
 
 In Claude Code, start the persistent watcher in the same turn:
 
@@ -85,6 +89,8 @@ on a specific field -- whether `session status` failed on the server link or
 the owner, whether a nick is in `channel members` -- rather than matching
 substrings in the human form. It is not for relaying: what reaches the user
 still follows the message conventions below, never a pasted JSON document.
+`inbox read --json` advances the same cursor as a text read; choose one
+format for the batch rather than reading twice to reformat it.
 
 The CLI owns session identity, recovery, membership confirmation, cursors,
 transport lifecycle, and cleanup. A command that reports a missing client,

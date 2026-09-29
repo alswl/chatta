@@ -1,2 +1,2 @@
 RAN: Bash /workspace/skills/chat/assets/quickstart.sh
-SAY: ⚠️ Chat refresh failed because the Chatta transport client is unavailable, so I could not read the inbox. Please install the required transport before retrying.
+SAY: ⚠️ Chat refresh failed because the ngircd dependency is unavailable, so I could not read the inbox. Please run brew install ngircd before retrying.

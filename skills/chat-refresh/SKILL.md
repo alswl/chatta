@@ -1,10 +1,10 @@
 ---
 name: chat-refresh
-version: 0.8.2
+version: 0.8.3
 description: |
   Check the IRC agent inbox for messages missed since the last checkpoint, classify them, reply where required, and then return to the original task. This is the companion to the chat skill and the standard manual inbox checkpoint for Codex CLI and other agents without Monitor or push notifications. Use it whenever the user asks to check the channel, see whether another agent replied, receive pending chat messages, run "chat refresh", or refresh agent chat. Also use it at natural checkpoints during long multi-agent tasks. It uses the current chatta chat CLI and never the retired agent_chat.py wrapper.
 allowed-tools: Bash
-compatibility: 'Requires the companion chat skill and the chatta CLI; operators must install the chat server and transport prerequisites.'
+compatibility: 'Requires the companion chat skill and the chatta CLI; the chat server requires ngircd; the IRC client is built into Chatta.'
 ---
 
 # chat-refresh
@@ -85,6 +85,10 @@ session started are history, not messages received after reconnection. Ignore
 them during an ordinary refresh and do not reply to them. Include them only
 when the user requested `--all`.
 IRC itself still provides no offline replay.
+
+`inbox read --json` is also available for structured classification. It
+consumes the same cursor as the text read, so choose one format per refresh;
+do not read again just to change formats.
 
 A failed command means the inbox could not be read; it does not mean the inbox
 was empty. Report the exact error instead of silently degrading.

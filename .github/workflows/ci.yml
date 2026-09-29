@@ -30,8 +30,7 @@ jobs:
       - run: |
           go build -o "$RUNNER_TEMP/bin/chatta" ./cmd/chatta
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-      # Static checks only: check_quickstart.sh needs ngircd and ii, so it
-      # stays a local target (make check-skill-scenarios).
+      # Live scenarios need ngircd; run them with make check-skill-scenarios.
       - run: make check-skill
 
   lint:

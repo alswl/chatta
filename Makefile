@@ -28,11 +28,12 @@ COVERAGE_PROFILING_DIR := $(PROJECT_DIR)/.cover
 .PHONY: all
 all: fmt test build check-skill
 
-# Static checks on skills/chat plus deterministic, privacy-safe behavior checks
-# for the Codex-oriented chat-refresh companion skill. Pure Python/shell, seconds.
+# Keep CI independent of a live bus or model access.
 .PHONY: check-skill
 check-skill:
 	@python3 skills/chat/evals/check_skill.py
+	@python3 skills/chatta-admin/evals/check_skill.py
+	@python3 skills/evals/check_transcripts.py
 	@skills/chat-refresh/evals/test_checks.sh
 
 # The quick start's eight scenarios against a real bus on port 6768. Needs

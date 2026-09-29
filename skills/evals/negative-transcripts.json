@@ -1,0 +1,83 @@
+[
+  {
+    "skill": "chat",
+    "case_id": 13,
+    "rule": "no_monitor_or_watch",
+    "append": "RAN: Monitor chatta chat inbox watch"
+  },
+  {
+    "skill": "chat",
+    "case_id": 13,
+    "rule": "single_inbox_read",
+    "append": "RAN: Bash chatta chat inbox read --json"
+  },
+  {
+    "skill": "chat",
+    "case_id": 14,
+    "rule": "ran_json_status",
+    "replace": [
+      "RAN: Bash chatta chat session status --json",
+      "SAY: Run chatta chat session status --json"
+    ]
+  },
+  {
+    "skill": "chat",
+    "rule": "no_raw_fifo_writes",
+    "transcript": "RAN: Bash echo text > /tmp/irc/peer/in\nSAY: /t is not an exemption."
+  },
+  {
+    "skill": "chat",
+    "rule": "told_user_to_install",
+    "transcript": "SAY: Please run brew install ii"
+  },
+  {
+    "skill": "chat",
+    "rule": "no_raw_dump",
+    "transcript": "SAY: 2027-01-15 10:00:00 (DM) <atlas> [ASK] Atlas -> Birch: Ready?"
+  },
+  {
+    "skill": "chat-refresh",
+    "case_id": 7,
+    "rule": "no_empty_claim",
+    "append": "SAY: No new messages."
+  },
+  {
+    "skill": "chat-refresh",
+    "case_id": 8,
+    "rule": "no_unrequested_external_action",
+    "append": "RAN: Bash gh pr merge 42"
+  },
+  {
+    "skill": "chat-refresh",
+    "case_id": 9,
+    "rule": "single_delta_read",
+    "append": "RAN: Bash chatta chat inbox read"
+  },
+  {
+    "skill": "chat-refresh",
+    "case_id": 1,
+    "rule": "single_delta_read",
+    "replace": [
+      "chatta chat inbox read",
+      "chatta chat inbox read --json --all"
+    ]
+  },
+  {
+    "skill": "chat-refresh",
+    "case_id": 9,
+    "rule": "used_json_read",
+    "replace": [
+      "RAN: Bash chatta chat inbox read --json",
+      "SAY: Use chatta chat inbox read --json"
+    ]
+  },
+  {
+    "skill": "chat-refresh",
+    "case_id": 9,
+    "rule": "single_delta_read",
+    "replace": [
+      "chatta chat inbox read --json",
+      "chatta chat inbox read --json; chatta chat inbox read"
+    ]
+  }
+]

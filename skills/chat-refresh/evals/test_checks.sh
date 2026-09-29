@@ -10,7 +10,9 @@ fi
 
 python3 check_privacy.py
 
-for id in 1 2 3 4 5 6; do
+for fixture in fixtures/case-*.txt; do
+  id=${fixture##*/case-}
+  id=${id%.txt}
   python3 check_transcript.py "$id" "fixtures/case-$id.txt"
 done
 

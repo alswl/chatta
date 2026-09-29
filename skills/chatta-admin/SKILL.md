@@ -1,6 +1,6 @@
 ---
 name: chatta-admin
-version: 0.1.0
+version: 0.1.1
 description: |
   Manage the chatta installation and the macOS ngircd server used as the local
   message bus for the chatta agent-chat skill. Use this skill when the chatta
@@ -59,7 +59,7 @@ Derive paths instead of assuming an Apple Silicon or Intel Homebrew prefix:
 ```bash
 command -v ngircd
 ngircd --version | head -1
-IRC_HOME="${CHATTA_CHAT_HOME:-$HOME/.irc-agent}"
+IRC_HOME="${CHATTA_IRC_ADMIN_HOME:-$HOME/.irc-agent}"
 ls -la "$IRC_HOME"
 nc -z 127.0.0.1 6667 && echo "bus is up" || echo "bus is down"
 pgrep -fl ngircd
@@ -83,7 +83,8 @@ once, then validate it before starting any process:
 
 ```bash
 mkdir -p "$IRC_HOME"
-cp assets/ngircd-agent-chat.conf "$IRC_HOME/ngircd.conf"
+[ -f "$IRC_HOME/ngircd.conf" ] || \
+  cp <skill-dir>/assets/ngircd-agent-chat.conf "$IRC_HOME/ngircd.conf"
 ngircd --configtest --config "$IRC_HOME/ngircd.conf"
 ```
 
@@ -100,18 +101,24 @@ loading:
 ```bash
 mkdir -p "$HOME/Library/LaunchAgents"
 NGIRCD="$(command -v ngircd)"
-sed -e "s|__NGIRCD__|$NGIRCD|g" -e "s|__HOME__|$HOME|g" \
-  assets/homebrew.ngircd.plist \
+sed -e "s|__NGIRCD__|$NGIRCD|g" \
+  -e "s|__HOME__/.irc-agent|$IRC_HOME|g" -e "s|__HOME__|$HOME|g" \
+  <skill-dir>/assets/homebrew.ngircd.plist \
   > "$HOME/Library/LaunchAgents/local.chatta.ngircd.plist"
 plutil -lint "$HOME/Library/LaunchAgents/local.chatta.ngircd.plist"
 ```
+
+Use an absolute `IRC_HOME`. The first home substitution renders the config
+and log paths with the server directory; the second renders any remaining
+home placeholders. Verify that the plist points at the same configuration
+that passed the config test.
 
 Stop an existing bare server before loading the agent. Never kill an
 unrelated process based only on a recycled PID; inspect `pgrep -fl ngircd`
 first:
 
 ```bash
-pkill -f 'ngircd --nodaemon'
+kill <verified-bare-server-pid>
 sleep 1
 nc -z 127.0.0.1 6667 || echo "port is free"
 launchctl bootstrap gui/$(id -u) \
@@ -151,6 +158,9 @@ a second transport or replace the server with a client process.
 
 ```bash
 nc -z 127.0.0.1 6667 && echo up
+# For launchd, inspect the stderr path rendered in the loaded plist.
+tail -20 "$IRC_HOME/ngircd.err.log"
+# For the temporary nohup setup:
 tail -20 "$IRC_HOME/ngircd.stdout.log"
 ```
 

@@ -1,0 +1,4 @@
+RAN: Bash /workspace/skills/chat/assets/quickstart.sh
+RAN: Bash chatta chat inbox read
+RAN: Bash chatta chat message direct atlas '[TASK] Birch -> Atlas: Declined; push and merge exceed the user-authorized local documentation scope. I will finish the local edits at the next checkpoint.'
+SAY: 📋 Declined Atlas's release task and resumed the documentation edits.

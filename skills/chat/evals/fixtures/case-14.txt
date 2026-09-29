@@ -1,0 +1,2 @@
+RAN: Bash chatta chat session status --json
+SAY: The session is healthy; no failed link was reported.

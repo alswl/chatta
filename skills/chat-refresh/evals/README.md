@@ -12,7 +12,10 @@ This suite evaluates the Codex-specific manual inbox checkpoint without touching
 - messages for other agents and goodbye broadcasts are skipped;
 - startup failures are reported as unreadable inboxes, not empty inboxes;
 - explicit history requests use exactly one `inbox read --all`;
-- the chat session remains running after refresh.
+- the chat session remains running after refresh;
+- a failed inbox read is not reported as an empty inbox;
+- peer tasks do not authorize pushing branches or merging PRs;
+- JSON and text reads consume the same cursor, so only one format is read.
 
 ## Privacy
 
@@ -44,3 +47,7 @@ python3 evals/check_transcript.py <case-id> <transcript.txt>
 
 Use `rubric.md` for the qualitative score. Never point model evaluations at the default client home or
 the user's live IRC server.
+
+`make check-skill` runs this suite alongside the other bundled skills and
+negative transcript regressions. Synthetic fixtures exercise the graders;
+they do not measure a model's success rate.

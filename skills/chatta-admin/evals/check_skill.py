@@ -35,6 +35,15 @@ else:
     if re.search(r"(?im)^\s*ii(?:\s|$)|(?:pgrep|pkill)[^\n]*\bii\b", text):
         fail("SKILL.md directly operates or inspects the transport client")
 
+    if '${CHATTA_CHAT_HOME:-' in text:
+        fail("server configuration must not use the client home variable")
+    if '${CHATTA_IRC_ADMIN_HOME:-' not in text:
+        fail("server configuration does not use CHATTA_IRC_ADMIN_HOME")
+    if 'ngircd.err.log' not in text:
+        fail("launchd diagnostics do not document the stderr log")
+    if "pkill -f 'ngircd --nodaemon'" in text:
+        fail("bare-server migration must target a verified PID")
+
 if not PLIST.exists():
     fail("homebrew.ngircd.plist is missing")
 else:
