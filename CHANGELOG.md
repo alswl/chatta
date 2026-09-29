@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.4.2] - 2026-09-29
+
+### Features
+- Update chat workflows and expand evaluation coverage
+
+### Refactor
+- Remove the deprecated --ii flag and restructure the READMEs
+
 ## [0.4.1] - 2026-09-17
 
 ### Ci
@@ -10,7 +18,7 @@ All notable changes to this project are documented here.
 ## [0.4.0] - 2026-09-17
 
 ### Features
-- Speak IRC in-process
+- Speak IRC in-process, retiring the external ii client
 
 ## [0.2.1] - 2026-09-11
 
