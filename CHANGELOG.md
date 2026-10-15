@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [0.5.0] - 2026-10-15
+
+### Features
+- Wake Codex conversations from ordinary IRC messages through a supervisor adapter.
+- Add explicit shared app-server preparation, native CLI launch, current-thread binding,
+  channel subscriptions, delivery status, and cursor-preserving startup reuse.
+- Extend the chat Skill and quick start for bidirectional Codex communication.
+
+### Bug Fixes
+- Close the app-server log on service startup errors.
+- Preserve native arguments, exit status and signals; report unavailable bindings.
+
 ## [0.4.2] - 2026-09-29
 
 ### Features

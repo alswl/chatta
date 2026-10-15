@@ -3,6 +3,7 @@ module github.com/alswl/chatta
 go 1.22
 
 require (
+	github.com/gorilla/websocket v1.5.3
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.12.1

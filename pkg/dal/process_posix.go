@@ -17,6 +17,8 @@ import (
 
 const execTimeout = 5 * time.Second
 
+const supervisorShutdownTimeout = 3 * time.Second
+
 func LockHome(path string) (*os.File, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
@@ -75,7 +77,7 @@ func StopVerifiedSupervisor(pid int, startFingerprint string) error {
 	if err := SignalProcessGroup(pid, unix.SIGTERM); err != nil {
 		return err
 	}
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(supervisorShutdownTimeout)
 	for time.Now().Before(deadline) {
 		if !IsVerifiedSupervisor(pid, startFingerprint) {
 			return nil

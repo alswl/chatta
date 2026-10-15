@@ -21,6 +21,7 @@
 - [快速开始](#快速开始)
 - [安装](#安装)
 - [命令概览](#命令概览)
+- [Codex 消息唤醒](#codex-消息唤醒)
 - [配置](#配置)
 - [工作原理](#工作原理)
 - [技能和文档](#技能和文档)
@@ -31,6 +32,7 @@
 
 - 绑定 Agent 所有者的客户端会话、健康检查和自动恢复。
 - 共享频道、私信、收件箱读取，以及会实时播报链路中断的持续监听。
+- 可选的 Codex 主动唤醒：IRC 消息在原会话启动空闲轮次或追加到工作中的轮次，无需模型轮询。
 - 按工作树隔离客户端目录，避免独立编码会话互相冲突。
 - 进程所有权、锁、频道成员管理和保守的客户端清理。
 - 默认输出人类可读形式，所有输出数据的命令都支持 `--json`。
@@ -145,6 +147,12 @@ chatta chat message direct <nick> <text>
 chatta chat inbox read [--all] [--json]
 chatta chat inbox watch
 
+chatta chat codex launch -- [codex arguments...]
+chatta chat codex service ensure [--json]
+chatta chat codex bind --current --if-needed [--subscribe-channel <channel>]
+chatta chat codex status [--json]
+chatta chat codex unbind
+
 chatta chat client list [--json]
 chatta chat client gc [--dry-run] [--prune] [--json]
 ```
@@ -165,6 +173,50 @@ chatta chat session stop
 
 使用 `chatta chat --help` 或具体子命令的 `--help` 查看参数。隐藏的扁平命令只
 作为兼容别名保留；新脚本和文档应使用上面的分组命令。
+
+## Codex 消息唤醒
+
+需要支持本地 Unix `--remote` 的 Codex CLI，已验证版本为 0.162.1。先启动原生客户端：
+
+```sh
+chatta chat codex launch -- -m gpt-6-luna
+```
+
+进入该会话后，让 [Chatta Skill](skills/chat/SKILL.md) 接入并启用自动收信。Skill 使用：
+
+```sh
+<chat-skill-dir>/assets/quickstart.sh --codex agent-a "API 开发"
+# 需要群聊时，显式加入并订阅频道：
+<chat-skill-dir>/assets/quickstart.sh --codex agent-a "API 开发" \
+  --subscribe-channel '#project'
+```
+
+按需要选择一种接入方式。已有绑定的订阅若不同，脚本会拒绝；先查状态，再显式绑定所需路由。
+每个接收消息的 Codex 会话都要接入；同一工作树内使用不同 nick 和
+`CHATTA_CHAT_HOME`。其他 Agent 仍向 nick 发送普通 IRC 私信。加入频道不等于订阅唤醒。
+
+supervisor 先存储消息，再送到已绑定的 Codex 对话：空闲时 `turn/start`，工作中
+`turn/steer`。RPC 接收不代表任务已完成。Agent 通过 Chatta CLI 回信，单在 Codex
+终端回答不会送给对方；后台运行 `inbox watch` 也不能单独唤醒空闲会话。
+
+```sh
+# 在已连接 IRC 的目标 Codex 会话内：
+chatta chat codex bind --current --if-needed
+chatta chat codex status --json
+chatta chat codex unbind
+```
+
+匹配的重复接入保留绑定与投递游标；有频道订阅时复用相同的 `--subscribe-channel` 参数。
+重启后显式重新接入，IRC 不提供离线重放。`codex status` 展示投递失败与待处理记录。
+
+`launch` 显式准备每用户共享的官方 Codex App Server，然后执行原生客户端，不代理键盘、
+鼠标或缩放。普通 Chatta IRC 启动不会启动 Codex；退出或解绑单个会话不会停止共享服务。
+也可用 `codex service ensure` 显式准备服务，`--service-home` 选择隔离实例，
+`--endpoint unix:///path` 只读复用已有私有本机端点，两者互斥。
+
+`launch --` 后的参数边界完整保留；普通非交互命令与原生 help/version 不依赖共享服务。
+Codex 0.162.1 的 remote resume 不支持权限覆盖参数，Chatta 保留错误，不静默删参数。
+恢复会话、自定义端点、存储及故障处理详见 [Codex 接入说明](skills/chat/references/codex.md)。
 
 ## 配置
 

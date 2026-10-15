@@ -2,12 +2,42 @@
 # chatta chat quick start: connect this agent session to the bus with no
 # questions asked. Safe to rerun — a healthy client is left alone.
 #
-#   assets/quickstart.sh [nick] [role]
+#   assets/quickstart.sh [--codex] [nick] [role] [--subscribe-channel '#channel']...
 #
 # Defaults: nick and role come from <git-dir>/irc-agent-identity if it exists,
 # otherwise from the repository directory name. Server host/port come from
 # CHATTA_CHAT_HOST / CHATTA_CHAT_PORT (127.0.0.1:6667 by default).
 set -eu
+
+codex=0
+if [ "${1:-}" = --codex ]; then codex=1; shift; fi
+nick=
+role=
+case "${1:-}" in ''|--*) ;; *) nick=$1; shift ;; esac
+case "${1:-}" in ''|--*) ;; *) role=$1; shift ;; esac
+validate_options() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --subscribe-channel)
+        [ "$#" -ge 2 ] && [ "$codex" = 1 ] || return 1
+        case "$2" in \#?*) ;; *) return 1 ;; esac
+        shift 2 ;;
+      --mention-current-identity)
+        [ "$codex" = 1 ] || return 1
+        shift ;;
+      *) return 1 ;;
+    esac
+  done
+}
+validate_options "$@" || { echo "usage: quickstart.sh [--codex] [nick] [role] [--subscribe-channel '#channel']... [--mention-current-identity]" >&2; exit 2; }
+chatta_bin=$(command -v "${CHATTA_BIN:-chatta}") || { echo "Chatta executable not found; set CHATTA_BIN to the installed or candidate executable" >&2; exit 1; }
+chatta() { "$chatta_bin" "$@"; }
+echo "binary   $chatta_bin"
+if [ "$codex" = 1 ]; then
+  [ -n "${CODEX_THREAD_ID:-}" ] || { echo "CODEX_THREAD_ID is unavailable; run --codex inside the target Codex conversation" >&2; exit 1; }
+  help=$(chatta chat codex bind --help) || exit 1
+  case "$help" in *--if-needed*) ;; *) echo "Selected Chatta lacks Codex startup support; set CHATTA_BIN to a compatible build" >&2; exit 1 ;; esac
+fi
 
 host=${CHATTA_CHAT_HOST:-127.0.0.1}
 port=${CHATTA_CHAT_PORT:-6667}
@@ -18,8 +48,6 @@ repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 repo=$(basename "$repo_root" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')
 repo=${repo%-}
 
-nick=${1:-}
-role=${2:-}
 identity=$(git rev-parse --git-dir 2>/dev/null || echo .git)/irc-agent-identity
 if [ -r "$identity" ]; then
   [ -n "$nick" ] || nick=$(sed -n 's/^name=//p' "$identity" | head -1 | tr '[:upper:]' '[:lower:]')
@@ -83,8 +111,28 @@ fi
 # 3. Project channel, then the one arrival message the lobby budget allows.
 chatta chat channel join "$repo" >/dev/null
 echo "channel  joined #agents #${repo}"
+join_subscriptions() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --subscribe-channel)
+        chatta chat channel join "$2" >/dev/null
+        echo "channel  joined $2 for Codex subscription"
+        shift 2 ;;
+      *) shift ;;
+    esac
+  done
+}
+join_subscriptions "$@"
 if [ "$fresh" = 1 ]; then
   chatta chat message send "[HELLO] ${nick} -> all: I am on ${repo} (#${repo}); ${role}." >/dev/null
 fi
 
-echo "next     Monitor: chatta chat inbox watch"
+if [ "$codex" = 1 ]; then
+  chatta chat codex bind --current --if-needed "$@"
+  chatta chat codex status
+  echo "next     Codex push configured; reply through the Chatta CLI, not only in this terminal"
+elif [ -n "${CODEX_THREAD_ID:-}" ]; then
+  echo "next     Codex checkpoints: chatta chat inbox read (cannot wake an idle session); use --codex for push"
+else
+  echo "next     Claude Code Monitor: chatta chat inbox watch; other runtimes use inbox checkpoints"
+fi

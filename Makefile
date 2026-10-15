@@ -32,6 +32,7 @@ all: fmt test build check-skill
 .PHONY: check-skill
 check-skill:
 	@python3 skills/chat/evals/check_skill.py
+	@python3 skills/chat/evals/check_codex_quickstart.py
 	@python3 skills/chatta-admin/evals/check_skill.py
 	@python3 skills/evals/check_transcripts.py
 	@skills/chat-refresh/evals/test_checks.sh

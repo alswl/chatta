@@ -23,6 +23,7 @@ type ChatService struct {
 	State                          common.ChatSession
 	OwnerLookup                    func() (common.OwnerBinding, error)
 	Executable                     string
+	codexLockContended             func()
 }
 
 func NewChatService(cfg config.ChatConfig) *ChatService {

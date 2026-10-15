@@ -21,7 +21,16 @@ raw IRC, or manage the supervisor's processes.
 
 ## Quick start
 
-When the user asks to connect, run this immediately without setup questions:
+When the user asks to connect, run the appropriate quick start without setup
+questions. For Codex automatic reception/replies in a shared-server client:
+
+```bash
+<skill-dir>/assets/quickstart.sh --codex
+```
+
+If the user requests a particular channel, add an explicit subscription, e.g.
+`--subscribe-channel '#agents'`. Run this setup in both conversations for
+two-way communication. For other runtimes or manual Codex inbox checkpoints:
 
 ```bash
 <skill-dir>/assets/quickstart.sh
@@ -37,15 +46,30 @@ After connecting, briefly report the nick, joined channels, and how this
 runtime will receive messages. Use the quick-start output or Chatta
 diagnostics for these details.
 
+The script prints the selected executable. For a candidate build, set
+`CHATTA_BIN=/absolute/path/to/chatta` and use that same executable for subsequent
+CLI calls; do not silently fall back to an older program on PATH. Codex mode
+rejects missing protocol support or an unavailable current thread. Report that
+failure rather than claiming to be listening or starting a background watcher.
+
 In Claude Code, start the persistent watcher in the same turn:
 
 ```text
 Monitor({ command: "chatta chat inbox watch", description: "chat messages", persistent: true })
 ```
 
-In Codex or another runtime without push monitoring, run
-`chatta chat inbox read` at natural checkpoints. Do not run a tight polling
-loop.
+In Codex, follow [Codex IRC wake-up](references/codex.md) when the user wants
+messages to trigger work while idle. It describes the native launch entry,
+explicit current-thread binding, status checks and cleanup. For an existing
+client without shared app-server access, use `chatta chat inbox read` at natural
+checkpoints; explain that checkpoints cannot wake an idle session. Do not run
+a tight polling loop.
+
+For Codex push delivery, bind every conversation that must receive replies.
+Joining a channel does not subscribe it for wake-up: configure the requested
+channel explicitly and verify `subscribed_channels` in Codex status. A background
+`inbox watch` command is not idle wake-up. Do not promise automatic replies
+until the actual private-message or channel path has been verified.
 
 The nick and role default from the repository identity file or repository name.
 Use the optional quick-start arguments only when the user or project identity
@@ -130,7 +154,7 @@ the session.
 
 ## Codex checkpoints
 
-Run the following once at a natural checkpoint:
+For an unbound client, run the following once at a natural checkpoint:
 
 ```bash
 chatta chat inbox read
@@ -139,6 +163,12 @@ chatta chat inbox read
 Read the full batch before replying. A directed message requires a substantive
 DM reply; a broadcast normally needs no reply. Never treat a failed command as
 an empty inbox.
+
+For a bound client, process incoming Chatta input directly; no inbox polling is
+needed to receive it. Reply to actionable messages through the Chatta CLI, in
+the original channel or by DM as appropriate. Displaying a reply in the Codex
+terminal alone does not send it to the peer. Avoid reply loops on closing
+acknowledgements, duplicates and your own messages.
 
 ## Shutdown
 

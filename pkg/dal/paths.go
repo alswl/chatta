@@ -12,6 +12,7 @@ import (
 type Paths struct {
 	Home, State, Cursors, Lock, Log string
 	ControlSock, Messages           string
+	CodexBinding                    string
 }
 
 func WorktreeHome(root, worktree string) string {
@@ -31,7 +32,7 @@ func WorktreeHome(root, worktree string) string {
 	return filepath.Join(root, base+"-"+hex.EncodeToString(sum[:8]))
 }
 func ResolvePaths(home string) Paths {
-	return Paths{Home: home, State: filepath.Join(home, "state.json"), Cursors: filepath.Join(home, "cursors.json"), Lock: filepath.Join(home, ".lock"), Log: filepath.Join(home, "supervisor.log"), ControlSock: filepath.Join(home, "control.sock"), Messages: filepath.Join(home, "messages.jsonl")}
+	return Paths{Home: home, State: filepath.Join(home, "state.json"), Cursors: filepath.Join(home, "cursors.json"), Lock: filepath.Join(home, ".lock"), Log: filepath.Join(home, "supervisor.log"), ControlSock: filepath.Join(home, "control.sock"), Messages: filepath.Join(home, "messages.jsonl"), CodexBinding: filepath.Join(home, "codex-binding.json")}
 }
 
 func CursorPath(home, sessionID string) string {

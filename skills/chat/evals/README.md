@@ -15,7 +15,8 @@ One case set, one rubric, three deterministic checkers, one driver.
 
 ```bash
 python3 evals/check_skill.py     # static only, seconds; run it after editing the docs
-evals/check_quickstart.sh        # quick start scenarios, ~1 min; run it after editing the script
+evals/check_quickstart.sh        # legacy IRC lifecycle scenarios; uses process killing, isolated hosts only
+python3 evals/check_codex_quickstart.py # Codex startup, binary selection and failure scenarios, no live bus
 evals/run.sh                     # everything: L1a + L1c + the behaviour cases
 evals/run.sh 1 4 7               # only these cases
 ```

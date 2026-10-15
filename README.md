@@ -23,6 +23,7 @@ its work.
 - [Quick start](#quick-start)
 - [Install](#install)
 - [Command overview](#command-overview)
+- [Codex message wake-up](#codex-message-wake-up)
 - [Configuration](#configuration)
 - [How it fits together](#how-it-fits-together)
 - [Skills and documentation](#skills-and-documentation)
@@ -34,6 +35,8 @@ its work.
 - Owner-bound client sessions with health checks and recovery.
 - Shared channels, direct messages, inbox reads, and streaming inbox watches
   that announce transport interruptions as they happen.
+- Optional Codex wake-up: incoming IRC messages start an idle turn or steer
+  active work in the same conversation, without model polling.
 - Per-worktree client homes so independent coding sessions do not collide.
 - Process ownership, locking, channel membership, and conservative client cleanup.
 - Human-readable output by default, with `--json` on every command that
@@ -155,6 +158,13 @@ chatta chat message direct <nick> <text>
 chatta chat inbox read [--all] [--json]
 chatta chat inbox watch
 
+chatta chat codex service ensure [--service-home <path>] [--endpoint <unix-url>] [--json]
+chatta chat codex launch -- [codex arguments...]
+chatta chat codex bind --current --if-needed [--subscribe-channel <channel>]
+chatta chat codex bind --endpoint <unix-url> --thread <explicit-thread-id>
+chatta chat codex status [--json]
+chatta chat codex unbind
+
 chatta chat client list [--json]
 chatta chat client gc [--dry-run] [--prune] [--json]
 ```
@@ -177,6 +187,65 @@ chatta chat session stop
 Use `chatta chat --help` or the relevant subcommand's `--help` for flags and
 argument details. Hidden flat commands remain only as compatibility aliases;
 new scripts and documentation should use the grouped form above.
+
+## Codex message wake-up
+
+Requires a Codex CLI with local Unix `--remote` support (tested with 0.162.1).
+Start a native Codex conversation:
+
+```sh
+chatta chat codex launch -- -m gpt-6-luna
+```
+
+Inside that conversation, ask the [Chatta Skill](skills/chat/SKILL.md) to
+connect with automatic reception. It runs the bundled quick start:
+
+```sh
+<chat-skill-dir>/assets/quickstart.sh --codex agent-a "API work"
+# To also receive a channel, explicitly join and subscribe through quick start:
+<chat-skill-dir>/assets/quickstart.sh --codex agent-a "API work" \
+  --subscribe-channel '#project'
+```
+
+Use one form with the desired subscriptions. An existing binding with different
+subscriptions is rejected; inspect status and explicitly bind the intended route.
+Set up each receiving Codex conversation, using a distinct nick and client home
+for sessions sharing a worktree (`CHATTA_CHAT_HOME` selects the home).
+Other agents keep sending normal IRC messages to the nick. Joining a channel
+alone does not enable its wake-up subscription.
+
+The supervisor stores messages before delivering them to the bound conversation.
+It uses `turn/start` while idle and `turn/steer` during active work. RPC
+acceptance is not task completion. Replies must be sent with the Chatta CLI;
+text printed only in the Codex terminal does not reach the peer. A background
+`inbox watch` command alone cannot wake an idle Codex conversation.
+
+```sh
+# Inside an already-connected target Codex conversation:
+chatta chat codex bind --current --if-needed
+chatta chat codex status --json
+chatta chat codex unbind
+```
+
+Matching startup bindings are reused without resetting the delivery cursor.
+For channel bindings, include the same `--subscribe-channel` options when
+reusing them. Restart recovery is explicit; IRC has no offline replay.
+Delivery failures and pending records are visible in `codex status`.
+
+`launch` explicitly prepares one shared official Codex App Server per user and
+execs the native client; Chatta does not proxy terminal input, mouse or resize.
+Ordinary IRC session startup does not start Codex, and closing or unbinding
+one session leaves the shared service running. Use `codex service ensure` for
+explicit service preparation; `--service-home` selects an isolated instance,
+and `--endpoint unix:///path` reuses a private local endpoint without changing
+its permissions. The two options are mutually exclusive.
+
+Arguments after `launch --` retain their original boundaries. Noninteractive
+commands and native help/version do not require the shared service. Remote
+`resume` with permission overrides is rejected by Codex 0.162.1; Chatta keeps
+that error rather than removing flags. See the [Codex guide](skills/chat/references/codex.md)
+for resume, custom endpoints, storage, failure handling and compatibility.
+
 
 ## Configuration
 

@@ -256,8 +256,9 @@ func openSupervisorLog(path string) (*slog.Logger, *os.File) {
 // controlHandler serves the supervisor's control socket, dispatching each
 // request onto the currently held irc.Conn (nil while disconnected).
 type controlHandler struct {
-	m   *ChatService
-	log *slog.Logger
+	m         *ChatService
+	log       *slog.Logger
+	bindingMu sync.Mutex
 
 	mu      sync.Mutex
 	conn    *irc.Conn
@@ -295,6 +296,12 @@ func (h *controlHandler) Handle(req daemon.ControlRequest) daemon.ControlRespons
 	switch req.Op {
 	case "status":
 		return h.status()
+	case "codex.bind":
+		return h.bindCodexWithReuse(req.Endpoint, req.ThreadID, req.Replay, req.MentionCurrentIdentity, req.SubscribedChannels, req.RequireAvailable, req.ReuseExisting)
+	case "codex.status":
+		return h.codexStatus()
+	case "codex.unbind":
+		return h.unbindCodex()
 	case "join":
 		return h.join(req.Target)
 	case "part":
@@ -311,6 +318,116 @@ func (h *controlHandler) Handle(req daemon.ControlRequest) daemon.ControlRespons
 	default:
 		return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: "unknown op: " + req.Op}
 	}
+}
+
+func (h *controlHandler) bindCodex(endpoint, threadID string, replay, mentionCurrentIdentity bool, subscribedChannels []string) daemon.ControlResponse {
+	return h.bindCodexChecked(endpoint, threadID, replay, mentionCurrentIdentity, subscribedChannels, false)
+}
+
+func (h *controlHandler) bindCodexChecked(endpoint, threadID string, replay, mentionCurrentIdentity bool, subscribedChannels []string, requireAvailable bool) daemon.ControlResponse {
+	return h.bindCodexWithReuse(endpoint, threadID, replay, mentionCurrentIdentity, subscribedChannels, requireAvailable, false)
+}
+
+func (h *controlHandler) bindCodexWithReuse(endpoint, threadID string, replay, mentionCurrentIdentity bool, subscribedChannels []string, requireAvailable, reuse bool) daemon.ControlResponse {
+	h.bindingMu.Lock()
+	defer h.bindingMu.Unlock()
+	if !strings.HasPrefix(endpoint, "unix:///") || threadID == "" {
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: "Codex binding requires a unix:/// endpoint and explicit thread ID"}
+	}
+	subscribedChannels, err := normalizeSubscribedChannels(subscribedChannels)
+	if err != nil {
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: err.Error()}
+	}
+	if reuse {
+		if !requireAvailable || replay {
+			return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: "binding reuse requires a current-thread probe and no replay"}
+		}
+		previous, loadErr := dal.LoadCodexBinding(h.m.Paths.CodexBinding)
+		if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
+			return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: loadErr.Error()}
+		}
+		if loadErr == nil && previous.Enabled {
+			sameChannels := len(previous.SubscribedChannels) == len(subscribedChannels)
+			for _, channel := range subscribedChannels {
+				sameChannels = sameChannels && channelSubscribed(channel, previous.SubscribedChannels)
+			}
+			if previous.SessionID != h.m.State.SessionID || previous.Endpoint != endpoint || previous.ThreadID != threadID || previous.MentionCurrentIdentity != mentionCurrentIdentity || !sameChannels {
+				return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: "existing Codex binding differs; inspect codex status and explicitly bind with the desired route; binding unchanged"}
+			}
+			probeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if err := (codexAppClient{Endpoint: endpoint, ThreadID: threadID, Timeout: 3 * time.Second}).CheckThread(probeCtx); err != nil {
+				return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: "current Codex thread is unavailable; binding unchanged: " + err.Error()}
+			}
+			queue := inspectCodexQueue(h.m.Paths.Messages, previous.Offset)
+			return daemon.ControlResponse{OK: true, Codex: &previous, CodexQueue: &queue}
+		}
+	}
+	offset := int64(0)
+	if !replay {
+		if info, err := os.Stat(h.m.Paths.Messages); err == nil {
+			offset = info.Size()
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: err.Error()}
+		}
+	}
+	bindingID, err := newEventID()
+	if err != nil {
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: err.Error()}
+	}
+	binding := common.CodexBinding{BindingID: bindingID, SessionID: h.m.State.SessionID, Endpoint: endpoint, ThreadID: threadID, Enabled: true, Offset: offset, Replay: replay, MentionCurrentIdentity: mentionCurrentIdentity, SubscribedChannels: subscribedChannels, UpdatedAt: time.Now().Unix()}
+	probeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	probeErr := (codexAppClient{Endpoint: endpoint, ThreadID: threadID, Timeout: 3 * time.Second}).CheckThread(probeCtx)
+	cancel()
+	binding.DeliveryState = "ready"
+	if probeErr != nil {
+		if requireAvailable {
+			return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: "current Codex thread is unavailable; binding unchanged: " + probeErr.Error()}
+		}
+		binding.DeliveryBlocked = true
+		binding.DeliveryState = deliveryFailureState(probeErr)
+		binding.DeliveryError = probeErr.Error()
+	}
+	if err := dal.SaveCodexBinding(h.m.Paths.CodexBinding, binding); err != nil {
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: err.Error()}
+	}
+	queue := inspectCodexQueue(h.m.Paths.Messages, binding.Offset)
+	return daemon.ControlResponse{OK: true, Codex: &binding, CodexQueue: &queue}
+}
+
+func (h *controlHandler) codexStatus() daemon.ControlResponse {
+	h.bindingMu.Lock()
+	defer h.bindingMu.Unlock()
+	binding, err := dal.LoadCodexBinding(h.m.Paths.CodexBinding)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return daemon.ControlResponse{OK: true}
+		}
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: err.Error()}
+	}
+	queue := inspectCodexQueue(h.m.Paths.Messages, binding.Offset)
+	return daemon.ControlResponse{OK: true, Codex: &binding, CodexQueue: &queue}
+}
+
+func (h *controlHandler) unbindCodex() daemon.ControlResponse {
+	h.bindingMu.Lock()
+	binding, err := dal.LoadCodexBinding(h.m.Paths.CodexBinding)
+	if errors.Is(err, os.ErrNotExist) {
+		h.bindingMu.Unlock()
+		return daemon.ControlResponse{OK: true}
+	}
+	if err != nil {
+		h.bindingMu.Unlock()
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: err.Error()}
+	}
+	binding.Enabled = false
+	binding.UpdatedAt = time.Now().Unix()
+	if err := dal.SaveCodexBinding(h.m.Paths.CodexBinding, binding); err != nil {
+		h.bindingMu.Unlock()
+		return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: err.Error()}
+	}
+	h.bindingMu.Unlock()
+	return daemon.ControlResponse{OK: true, Codex: &binding}
 }
 
 func (h *controlHandler) status() daemon.ControlResponse {
@@ -438,7 +555,14 @@ func (m *ChatService) supervise() error {
 	}
 	defer func() { _ = srv.Close() }()
 
+	state, err := dal.LoadState(m.StatePath)
+	if err != nil {
+		return fmt.Errorf("load session state for supervisor: %w", err)
+	}
+	m.State = state
+	wakeCodex := make(chan struct{}, 1)
 	h := &controlHandler{m: m, log: log}
+	go m.runCodexWorker(ctx, h, log, wakeCodex)
 	go func() {
 		if err := srv.Serve(ctx, h); err != nil {
 			log.Error("control socket server exited", "error", err)
@@ -469,8 +593,18 @@ func (m *ChatService) supervise() error {
 			}
 		}
 		conn.OnMessage(func(kind, target, nick, text string) {
-			if err := dal.AppendMessage(m.Paths.Messages, common.StoredMessage{TS: time.Now().Unix(), Kind: kind, Target: target, Nick: nick, Text: text}); err != nil {
+			id, idErr := newEventID()
+			if idErr != nil {
+				log.Error("failed to create message event ID", "error", idErr)
+				return
+			}
+			if err := dal.AppendMessage(m.Paths.Messages, common.StoredMessage{EventID: id, Source: "irc", TS: time.Now().Unix(), Kind: kind, Target: target, Nick: nick, Text: text}); err != nil {
 				log.Error("failed to append message", "error", err)
+				return
+			}
+			select {
+			case wakeCodex <- struct{}{}:
+			default:
 			}
 		})
 		disconnected := make(chan error, 1)

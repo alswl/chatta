@@ -70,11 +70,47 @@ type ClientSurvey struct {
 // StoredMessage is one line of messages.jsonl: a received PRIVMSG the
 // supervisor has recorded.
 type StoredMessage struct {
-	TS     int64  `json:"ts"`
-	Kind   string `json:"kind"`
-	Target string `json:"target"`
-	Nick   string `json:"nick"`
-	Text   string `json:"text"`
+	EventID string `json:"event_id,omitempty"`
+	Source  string `json:"source,omitempty"`
+	TS      int64  `json:"ts"`
+	Kind    string `json:"kind"`
+	Target  string `json:"target"`
+	Nick    string `json:"nick"`
+	Text    string `json:"text"`
+}
+
+// CodexBinding is the explicit destination and independent delivery cursor
+// for one session's app-server integration.
+type CodexBinding struct {
+	BindingID                string   `json:"binding_id"`
+	SessionID                string   `json:"session_id"`
+	Endpoint                 string   `json:"endpoint"`
+	ThreadID                 string   `json:"thread_id"`
+	Enabled                  bool     `json:"enabled"`
+	Offset                   int64    `json:"offset"`
+	Replay                   bool     `json:"replay"`
+	MentionCurrentIdentity   bool     `json:"mention_current_identity,omitempty"`
+	SubscribedChannels       []string `json:"subscribed_channels,omitempty"`
+	DeliveryBlocked          bool     `json:"delivery_blocked,omitempty"`
+	DeliveryState            string   `json:"delivery_state,omitempty"`
+	DeliveryError            string   `json:"delivery_error,omitempty"`
+	NoStartAfterSteerFailure bool     `json:"no_start_after_steer_failure,omitempty"`
+	UpdatedAt                int64    `json:"updated_at"`
+}
+
+// CodexQueueStatus is a read-only snapshot from the independent delivery cursor.
+type CodexQueueStatus struct {
+	PendingRecords int    `json:"pending_records"`
+	PendingBytes   int64  `json:"pending_bytes"`
+	Blocked        bool   `json:"blocked"`
+	Error          string `json:"error,omitempty"`
+	ErrorOffset    *int64 `json:"error_offset,omitempty"`
+}
+
+// CodexDeliveryStatus pairs a session binding with its current queue snapshot.
+type CodexDeliveryStatus struct {
+	Binding *CodexBinding     `json:"binding,omitempty"`
+	Queue   *CodexQueueStatus `json:"queue,omitempty"`
 }
 
 // TransportStatus reports the supervisor's live IRC connection state, as
