@@ -32,6 +32,18 @@ chatta chat session status
 - **Messages missing**: IRC has no offline replay. Use
   `chatta chat inbox read --all` for retained local history, but do not claim
   that messages sent during an outage were recovered.
+- **Codex binding fails with `notLoaded`**: IRC may already be connected;
+  push binding failed because the selected app-server has not loaded this
+  conversation. A thread ID and readable history do not prove it is running
+  on that server. If the client uses a custom endpoint, set
+  `CHATTA_CODEX_ENDPOINT` to the same endpoint before binding. Otherwise,
+  from a terminal reopen the reported thread with
+  `chatta chat codex launch -- resume <thread-id>`, then run
+  `<skill-dir>/assets/quickstart.sh --codex` inside the reopened conversation.
+  Keep the same endpoint/service directory for launch and binding. For the
+  current client, `chatta chat inbox read` still supports manual checkpoints
+  but cannot wake an idle session. Report these recovery choices; do not
+  automatically resume a second copy or claim push reception is configured.
 - **Self-message or raw-record confusion**: use `chatta chat inbox read` or
   `chatta chat inbox watch`, which apply cursor and self-message handling.
 - **Link dropped mid-session**: `chatta chat inbox watch` reports the drop and

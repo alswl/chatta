@@ -22,7 +22,11 @@ raw IRC, or manage the supervisor's processes.
 ## Quick start
 
 When the user asks to connect, run the appropriate quick start without setup
-questions. For Codex automatic reception/replies in a shared-server client:
+questions. For Codex automatic reception/replies, the conversation must already
+be running through `chatta chat codex launch` (or `codex --remote` with the
+same endpoint used for binding). Read [Codex IRC wake-up](references/codex.md)
+before choosing push setup; `CODEX_THREAD_ID` alone does not establish this
+prerequisite. In that shared-server client, run:
 
 ```bash
 <skill-dir>/assets/quickstart.sh --codex
@@ -51,6 +55,10 @@ The script prints the selected executable. For a candidate build, set
 CLI calls; do not silently fall back to an older program on PATH. Codex mode
 rejects missing protocol support or an unavailable current thread. Report that
 failure rather than claiming to be listening or starting a background watcher.
+If the failure is `notLoaded`, report that IRC connected but push binding
+failed, include the CLI's recovery steps, and explain that manual
+`chatta chat inbox read` remains available. Do not stop at the state name or
+automatically resume the thread on a different server.
 
 In Claude Code, start the persistent watcher in the same turn:
 

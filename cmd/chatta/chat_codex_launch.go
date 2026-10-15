@@ -61,7 +61,6 @@ func launchCodex(cmd *cobra.Command, args []string) error {
 	if !hasRemote {
 		argv = append([]string{executable, "--remote", status.Endpoint}, args...)
 	}
-	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Chatta Codex endpoint: %s\n", status.Endpoint)
 	// Replacing this process leaves terminal input, resize, signals and exit
 	// status under the native client, with no PTY or RPC proxy in between.
 	return syscall.Exec(path, argv, os.Environ())

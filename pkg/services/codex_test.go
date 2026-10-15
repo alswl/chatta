@@ -507,6 +507,38 @@ func TestCodexStartupReusePreservesPendingCursorAndRejectsRouteChange(t *testing
 	require.Equal(t, *first.Codex, current)
 }
 
+func TestCodexCurrentNotLoadedExplainsRecoveryAndPreservesBinding(t *testing.T) {
+	endpoint, calls := scriptedEndpoint(t, func(method string, _ map[string]any) map[string]any {
+		if method == "thread/read" {
+			return map[string]any{"result": map[string]any{"thread": map[string]any{"id": "thread", "status": map[string]any{"type": "notLoaded"}}}}
+		}
+		return map[string]any{"result": map[string]any{}}
+	})
+	for _, reuse := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reuse=%t", reuse), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "binding.json")
+			previous := common.CodexBinding{BindingID: "existing", SessionID: "session", Endpoint: endpoint, ThreadID: "thread", Enabled: true, Offset: 42}
+			require.NoError(t, dal.SaveCodexBinding(path, previous))
+			before, err := os.ReadFile(path)
+			require.NoError(t, err)
+			h := &controlHandler{m: &ChatService{State: common.ChatSession{SessionID: "session"}, Paths: dal.Paths{CodexBinding: path}}}
+			resp := h.Handle(daemon.ControlRequest{Op: "codex.bind", Endpoint: endpoint, ThreadID: "thread", RequireAvailable: true, ReuseExisting: reuse})
+			require.False(t, resp.OK)
+			require.Contains(t, resp.Error, "notLoaded")
+			require.Contains(t, resp.Error, "binding unchanged")
+			require.Contains(t, resp.Error, endpoint)
+			require.Contains(t, resp.Error, "chatta chat codex launch -- resume")
+			require.Contains(t, resp.Error, "chatta chat inbox read")
+			after, err := os.ReadFile(path)
+			require.NoError(t, err)
+			require.Equal(t, before, after)
+		})
+	}
+	for _, method := range calls() {
+		require.Contains(t, []string{"initialize", "initialized", "thread/read", "thread/turns/list"}, method)
+	}
+}
+
 func TestCodexEventIdentifiesRecipientRatherThanDirectConversationPeer(t *testing.T) {
 	direct := common.StoredMessage{EventID: "dm", Source: "irc", Nick: "sender", Target: "sender", Kind: "direct", Text: "question"}
 	body := formatCodexEvent(direct, "receiver")

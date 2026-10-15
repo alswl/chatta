@@ -357,7 +357,7 @@ func (h *controlHandler) bindCodexWithReuse(endpoint, threadID string, replay, m
 			probeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			if err := (codexAppClient{Endpoint: endpoint, ThreadID: threadID, Timeout: 3 * time.Second}).CheckThread(probeCtx); err != nil {
-				return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: "current Codex thread is unavailable; binding unchanged: " + err.Error()}
+				return currentCodexUnavailable(endpoint, err)
 			}
 			queue := inspectCodexQueue(h.m.Paths.Messages, previous.Offset)
 			return daemon.ControlResponse{OK: true, Codex: &previous, CodexQueue: &queue}
@@ -382,7 +382,7 @@ func (h *controlHandler) bindCodexWithReuse(endpoint, threadID string, replay, m
 	binding.DeliveryState = "ready"
 	if probeErr != nil {
 		if requireAvailable {
-			return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: "current Codex thread is unavailable; binding unchanged: " + probeErr.Error()}
+			return currentCodexUnavailable(endpoint, probeErr)
 		}
 		binding.DeliveryBlocked = true
 		binding.DeliveryState = deliveryFailureState(probeErr)
@@ -393,6 +393,15 @@ func (h *controlHandler) bindCodexWithReuse(endpoint, threadID string, replay, m
 	}
 	queue := inspectCodexQueue(h.m.Paths.Messages, binding.Offset)
 	return daemon.ControlResponse{OK: true, Codex: &binding, CodexQueue: &queue}
+}
+
+func currentCodexUnavailable(endpoint string, err error) daemon.ControlResponse {
+	message := fmt.Sprintf("current Codex thread is unavailable at %s; binding unchanged: %s", endpoint, err)
+	var unavailable *threadUnavailableError
+	if errors.As(err, &unavailable) && unavailable.State == "notLoaded" {
+		message += "; this thread is not loaded on the selected app-server. If this conversation uses a custom endpoint, set CHATTA_CODEX_ENDPOINT to that same endpoint. Otherwise, reopen it from a terminal with chatta chat codex launch -- resume <thread-id>, then rerun quickstart.sh --codex inside that conversation. For manual reception in the current session, use chatta chat inbox read (cannot wake an idle session)"
+	}
+	return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: message}
 }
 
 func (h *controlHandler) codexStatus() daemon.ControlResponse {

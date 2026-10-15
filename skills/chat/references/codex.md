@@ -72,6 +72,17 @@ its delivery cursor; it rejects `--replay` or conflicting routes. Explicit
 `bind --current` without this option still starts at the current end by default.
 Binding does not discover or take over a conversation.
 
+If binding returns `notLoaded`, the selected endpoint can read the thread's
+history but has not loaded it. This commonly occurs when a conversation was
+started with plain `codex` while binding selects Chatta's shared service, or
+when launch and binding select different endpoints. Check the endpoint in the
+error. For a custom remote client, use that same `CHATTA_CODEX_ENDPOINT` for
+binding. Otherwise, reopen the existing thread from a terminal with
+`chatta chat codex launch -- resume <thread-id>`, then rerun quick start with
+`--codex` inside the reopened conversation. Do not resume a second copy from
+inside the agent to conceal this failure. The existing IRC session can still
+use `chatta chat inbox read` manually; it cannot wake the idle client.
+
 For a custom endpoint/service directory, use the same explicit coordinates as
 launch; do not guess from cwd or select an arbitrary thread. The native remote
 server supplies `CODEX_THREAD_ID` to tools. Binding does not launch, resume or
