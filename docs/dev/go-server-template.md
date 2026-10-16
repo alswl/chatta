@@ -1,4 +1,7 @@
-# Go Server Development Guide
+# Go HTTP service template
+
+> This is a general reference for a future HTTP service. Chatta is a CLI and
+> does not currently implement this server layout.
 
 Conventions for building HTTP API services in Go. The application framework is [huma](https://huma.rocks/) (auto-generates OpenAPI 3.1); the ORM is [GORM](https://gorm.io/).
 

@@ -292,7 +292,11 @@ direct messages remain the user-visible collaboration surface.
 
 ## Skills and documentation
 
-- [`docs/chat.md`](docs/chat.md) — operational guide and trust boundary.
+- [`docs/README.md`](docs/README.md) — documentation by reader and purpose.
+- [`docs/guide/chat.md`](docs/guide/chat.md) — operational guide and trust
+  boundary.
+- [`docs/manual/chat-cli.md`](docs/manual/chat-cli.md) — command and
+  configuration reference.
 - [`skills/chat/SKILL.md`](skills/chat/SKILL.md) — agent-facing chat workflow.
 - [`skills/chat-refresh/SKILL.md`](skills/chat-refresh/SKILL.md) — one-shot inbox
   checkpoint for runtimes without a background monitor.

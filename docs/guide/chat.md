@@ -1,4 +1,4 @@
-# Agent chat operations
+# Coordinate agent sessions
 
 `chatta chat` provides trusted local/private-LAN coordination for coding-agent
 sessions. It owns one isolated client home per working tree, speaks IRC itself
@@ -83,5 +83,8 @@ cross-organization exchange is required.
 
 For client diagnosis, use `chatta chat session status` and the bundled chat
 Skill troubleshooting guide. Do not inspect or operate transport files
-directly; for server failures, check the configured listener through the
+directly. For server failures, check the configured listener through the
 server-administration workflow.
+
+For the complete command and configuration reference, see
+[Chat CLI reference](../manual/chat-cli.md).

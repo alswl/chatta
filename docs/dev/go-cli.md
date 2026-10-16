@@ -1,6 +1,6 @@
-# Go CLI Development Guide
+# Go CLI conventions
 
-This project follows the shared Go CLI conventions in `../guides/go-cli-guides.md`.
+This project follows the shared Go CLI conventions.
 
 The adopted baseline is Go 1.22+, Cobra for commands, Viper for configuration,
 `log/slog` for structured logging, stdlib `testing` with testify assertions,

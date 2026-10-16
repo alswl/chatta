@@ -256,7 +256,9 @@ Codex 0.162.1 的 remote resume 不支持权限覆盖参数，Chatta 保留错�
 
 ## 技能和文档
 
-- [`docs/chat.md`](docs/chat.md) — 操作指南和信任边界。
+- [`docs/README.md`](docs/README.md) — 按读者和目的组织的文档入口。
+- [`docs/guide/chat.md`](docs/guide/chat.md) — 操作指南和信任边界。
+- [`docs/manual/chat-cli.md`](docs/manual/chat-cli.md) — 命令和配置参考。
 - [`skills/chat/SKILL.md`](skills/chat/SKILL.md) — Agent 侧聊天工作流。
 - [`skills/chat-refresh/SKILL.md`](skills/chat-refresh/SKILL.md) — 无后台监视器时的
   单次收件箱检查。
