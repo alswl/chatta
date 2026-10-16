@@ -38,6 +38,8 @@ under `$TMPDIR`. Neither touches the real `127.0.0.1:6667` bus.
   not passing.
 
 The Codex checkpoint and structured status cases are 13 and 14.
+See [Herdr push acceptance](herdr-push.md) for the two-native-session,
+three-round conversation test and the observed terminal evidence.
 `make check-skill` also tests synthetic transcripts and deliberately incorrect
 variants through `skills/evals/check_transcripts.py`. These checks validate
 the graders; they are not model benchmark results.

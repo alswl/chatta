@@ -352,7 +352,7 @@ func (h *controlHandler) bindCodexWithReuse(endpoint, threadID string, replay, m
 				sameChannels = sameChannels && channelSubscribed(channel, previous.SubscribedChannels)
 			}
 			if previous.SessionID != h.m.State.SessionID || previous.Endpoint != endpoint || previous.ThreadID != threadID || previous.MentionCurrentIdentity != mentionCurrentIdentity || !sameChannels {
-				return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: "existing Codex binding differs; inspect codex status and explicitly bind with the desired route; binding unchanged"}
+				return conflictingCodexBinding(previous, h.m.State.SessionID, endpoint, threadID, mentionCurrentIdentity, subscribedChannels)
 			}
 			probeCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
@@ -393,6 +393,47 @@ func (h *controlHandler) bindCodexWithReuse(endpoint, threadID string, replay, m
 	}
 	queue := inspectCodexQueue(h.m.Paths.Messages, binding.Offset)
 	return daemon.ControlResponse{OK: true, Codex: &binding, CodexQueue: &queue}
+}
+
+func conflictingCodexBinding(previous common.CodexBinding, sessionID, endpoint, threadID string, mentionCurrentIdentity bool, subscribedChannels []string) daemon.ControlResponse {
+	differences := make([]string, 0, 5)
+	if previous.SessionID != sessionID {
+		differences = append(differences, "session")
+	}
+	if previous.Endpoint != endpoint {
+		differences = append(differences, "endpoint")
+	}
+	if previous.ThreadID != threadID {
+		differences = append(differences, "thread")
+	}
+	if previous.MentionCurrentIdentity != mentionCurrentIdentity {
+		differences = append(differences, "mention-current-identity")
+	}
+	if !sameSubscribedChannels(previous.SubscribedChannels, subscribedChannels) {
+		differences = append(differences, "subscribed-channels")
+	}
+	message := fmt.Sprintf("existing Codex binding conflicts with --if-needed; binding unchanged; differences: %s; existing route: %s; requested route: %s; keep the existing binding: do nothing; replace it intentionally: repeat this bind command without --if-needed", strings.Join(differences, ", "), describeCodexRoute(previous.Endpoint, previous.ThreadID, previous.MentionCurrentIdentity, previous.SubscribedChannels), describeCodexRoute(endpoint, threadID, mentionCurrentIdentity, subscribedChannels))
+	return daemon.ControlResponse{OK: false, Code: daemon.CodeBadRequest, Error: message}
+}
+
+func sameSubscribedChannels(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for _, channel := range right {
+		if !channelSubscribed(channel, left) {
+			return false
+		}
+	}
+	return true
+}
+
+func describeCodexRoute(endpoint, threadID string, mentionCurrentIdentity bool, channels []string) string {
+	channelList := "none"
+	if len(channels) != 0 {
+		channelList = strings.Join(channels, ",")
+	}
+	return fmt.Sprintf("thread=%q endpoint=%q mention-current-identity=%t subscribed-channels=%q", threadID, endpoint, mentionCurrentIdentity, channelList)
 }
 
 func currentCodexUnavailable(endpoint string, err error) daemon.ControlResponse {
@@ -544,8 +585,9 @@ func mapTransportErr(err error, fallback string) daemon.ControlResponse {
 }
 
 // supervise is the resident process's run loop: it owns the IRC connection
-// and the control socket for as long as the owning agent session is alive,
-// reconnecting and rejoining channels whenever the connection drops.
+// and the control socket while its owner is alive or an active Codex binding
+// needs the client to wake a native session. It reconnects and rejoins
+// channels whenever the connection drops.
 func (m *ChatService) supervise() error {
 	lock, err := dal.LockHome(m.Paths.Lock)
 	if err != nil {
@@ -585,7 +627,7 @@ func (m *ChatService) supervise() error {
 			log.Error("failed to load state", "error", err)
 			return err
 		}
-		if !dal.ProcessAlive(st.Owner) {
+		if !dal.ProcessAlive(st.Owner) && !hasActiveCodexBinding(m.Paths, st.SessionID) {
 			log.Info("owner has exited; stopping supervisor")
 			return nil
 		}
@@ -643,7 +685,7 @@ func (m *ChatService) supervise() error {
 				}
 				running = false
 			case <-ticker.C:
-				if !dal.ProcessAlive(st.Owner) {
+				if !dal.ProcessAlive(st.Owner) && !hasActiveCodexBinding(m.Paths, st.SessionID) {
 					log.Info("owner process ended; stopping supervisor")
 					announceDeparture(conn, st.Nick, log)
 					_ = conn.Quit("owner exited")

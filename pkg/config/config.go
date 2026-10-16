@@ -13,8 +13,9 @@ import (
 
 // Config contains process-wide CLI configuration.
 type Config struct {
-	Verbose bool
-	Chat    ChatConfig
+	Verbose         bool
+	Chat            ChatConfig
+	DeprecatedIISet bool
 }
 
 // ChatConfig contains settings for the local agent-chat client.
@@ -32,6 +33,7 @@ type Options struct {
 	VerboseSet                                            bool
 	Chat                                                  ChatConfig
 	ChatHomeSet, ChatHostSet, ChatPortSet, ChatChannelSet bool
+	DeprecatedIISet                                       bool
 }
 
 // Load applies the precedence: explicit options/flags, environment, config file, defaults.
@@ -85,7 +87,20 @@ func Load(options Options) (Config, error) {
 		chat.Channel = options.Chat.Channel
 	}
 
-	return Config{Verbose: v.GetBool("verbose"), Chat: chat}, nil
+	return Config{
+		Verbose:         v.GetBool("verbose"),
+		Chat:            chat,
+		DeprecatedIISet: options.DeprecatedIISet || deprecatedIIEnvironmentSet(),
+	}, nil
+}
+
+func deprecatedIIEnvironmentSet() bool {
+	for _, name := range []string{"CHATTA_CHAT_II", "AGENT_CHAT_II"} {
+		if _, ok := os.LookupEnv(name); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func applyChatEnvironment(chat *ChatConfig, prefix string) error {

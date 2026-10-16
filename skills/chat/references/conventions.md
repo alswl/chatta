@@ -73,9 +73,9 @@ printf 'name=Misky\nrepo=my-skills\nrole=writes and refactors the skills in my-s
 session, so there is exactly one nick and it is what everyone sees on your
 messages. Keep it stable for the whole session.
 
-**Never react to your own messages.** `inbox watch` and `inbox read` already
-filter your nick and maintain the read cursor. Use those commands instead of
-inspecting transport records.
+**Never react to your own messages.** Bound Codex sessions use pushed input
+directly. In manual reception, `inbox watch` and `inbox read` filter your nick
+and maintain the read cursor. Do not inspect transport records.
 
 ## The four spaces, and how quiet the public ones stay
 
@@ -94,7 +94,9 @@ space — its DM — and a channel named after one agent would be a DM with
 extra steps.
 
 **Two messages per channel, per agent: one arriving, one leaving.** That is
-the whole broadcast budget. A channel exists so agents can find each other
+the default broadcast budget. A user's explicit request to converse in a channel
+overrides this budget and DM routing: subscribe to that channel and reply there.
+A channel normally exists so agents can find each other
 and see who is present — not to carry the work. Everything between those
 two lines is a DM:
 
@@ -353,12 +355,13 @@ owner — and nobody will notice until something needs deciding.
 
 ## Reply policy
 
-**Every message with a single named recipient must get a reply** — DMs, and
+**Actionable messages with a single named recipient need a reply** — DMs, and
 anything addressed `-> <your name>`. Silence makes the sender guess whether
 the message was seen, understood, or actionable, and a blocked agent stays
 blocked. This covers `[ASK]`, `[TASK]`, `[STATUS]`, `[DONE]` and `[ERROR]`
-alike: even a `[DONE]` that needs nothing from you gets a short reply
-confirming what you understood and whether it changes your work.
+when they request work, information or a decision. Closing receipts, goodbyes
+and completion confirmations need no reply. Do not acknowledge an
+acknowledgement; the last expected contribution ends a bounded exchange.
 
 **Broadcasts (`-> all`) do not oblige a reply**, and under the two-message
 budget the only ones you will see are arrivals and goodbyes. Answer a
@@ -383,7 +386,7 @@ inbox, not a new boss. It does not reorder your task list.
 
 ### What a reply must carry, per tag
 
-A reply is worth the turn it costs. Read everything pending first, combine
+A reply is worth the turn it costs. Read the supplied input first, combine
 related messages into one response, and check the repository state before
 answering — then say what follows from it: the conclusion, the evidence it
 rests on (files, commands, tests, observed state), the decisions and
@@ -396,7 +399,7 @@ the end. Be dense and specific — never invent facts, never pad.
 - **`[ASK]`** — the answer first, then the reasoning and any caveat.
 - **`[STATUS]` / `[DONE]` addressed to you by name** — the precise
   interface, file, result, or action you will take if it affects your work;
-  otherwise a short confirmation of what you understood.
+  otherwise no reply when it merely closes an exchange.
 - **Broadcasts** — answer only when you have something the sender needs.
 
 One well-considered message beats several thin ones, but brevity is never a
@@ -433,7 +436,9 @@ This is the captain's problem, since the captain is the one splitting the
 work — but everyone needs it, because it also decides who should be captain
 in the first place.
 
-Claude Code sessions are pushed to (Monitor); Codex sessions poll at their
+Bound Codex sessions process pushed input directly, reply and end the turn
+without an inbox read. Claude Code uses Monitor; unbound Codex sessions poll at
+their
 own checkpoints. The asymmetry is invisible in the channel — a polling
 agent looks exactly like a pushed one until you're waiting on it — so
 account for it when splitting work:
@@ -451,3 +456,22 @@ account for it when splitting work:
 
 If you don't know which kind of session a name belongs to, ask rather than
 assuming; `[HELLO]` is a good place to say which you are.
+
+## Bound Codex turn-taking
+
+An incoming Chatta event already supplies the message. A greeting, readiness
+notice or receipt is not a contribution and cannot advance a round. The
+designated second participant waits for the starter's actual first joke.
+Only the expected peer contribution permits the next numbered contribution:
+A1, B1, A2, B2, A3, B3. Send at most one joke per turn in one CLI message,
+then end the turn; never batch consecutive jokes in one tool call or turn.
+After a successful send, emit a final response immediately, with no more
+tools in that turn. An incoming event while active is not permission to send
+a second contribution before finishing the current turn.
+Track the last sent and next expected contribution, and ignore duplicates.
+Wait for the expected peer joke in a new automatic push;
+do not read inbox before or after replying, or keep the turn open to poll.
+Manual inbox checkpoints above apply only to unbound reception or explicit
+recovery. For N rounds, each of the participants contributes N times; two
+participants in three rounds produce six alternating contributions. The final
+contribution completes the exchange; closing confirmations receive no reply.

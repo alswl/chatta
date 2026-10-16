@@ -11,9 +11,11 @@ Usage:
 Exit status: 0 = no errors (warnings possible); 1 = at least one error.
 """
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -49,7 +51,26 @@ def outside_fences(text: str):
 
 # ---- 1. Every documented command must exist ---------------------------------
 
-have_chatta = subprocess.run(["which", "chatta"], capture_output=True).returncode == 0
+repo_root = ROOT.parents[1]
+configured_chatta = os.environ.get("CHATTA_BIN")
+if configured_chatta:
+    chatta_bin = configured_chatta
+elif (repo_root / "cmd" / "chatta" / "main.go").exists():
+    build_dir = tempfile.TemporaryDirectory(prefix="chatta-skill-check-")
+    chatta_bin = str(Path(build_dir.name) / "chatta")
+    build = subprocess.run(
+        ["go", "build", "-o", chatta_bin, "./cmd/chatta"],
+        cwd=repo_root,
+        capture_output=True,
+    )
+    if build.returncode != 0:
+        err("could not build the repository chatta binary: " + build.stderr.decode(errors="replace").strip())
+        chatta_bin = ""
+else:
+    found = subprocess.run(["which", "chatta"], capture_output=True, text=True)
+    chatta_bin = found.stdout.strip() if found.returncode == 0 else ""
+
+have_chatta = bool(chatta_bin)
 seen_cmds: set[tuple[str, str]] = set()
 for doc in DOCS:
     for m in re.finditer(r"chatta chat ([a-z]+) ([a-z]+)", doc.read_text()):
@@ -64,12 +85,12 @@ for doc in DOCS:
             seen_flags.add((m.group(1), m.group(2), flag))
 if have_chatta:
     for group, sub in sorted(seen_cmds):
-        r = subprocess.run(["chatta", "chat", group, sub, "--help"], capture_output=True)
+        r = subprocess.run([chatta_bin, "chat", group, sub, "--help"], capture_output=True)
         if r.returncode != 0:
             err(f"documented command does not exist: chatta chat {group} {sub}")
     # A flag the docs give a command but nobody registered is what --deep was.
     for group, sub, flag in sorted(seen_flags):
-        r = subprocess.run(["chatta", "chat", group, sub, "--help"], capture_output=True)
+        r = subprocess.run([chatta_bin, "chat", group, sub, "--help"], capture_output=True)
         if r.returncode == 0 and flag not in r.stdout.decode(errors="replace"):
             err(f"documented flag does not exist: chatta chat {group} {sub} {flag}")
 else:

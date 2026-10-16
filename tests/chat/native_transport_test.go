@@ -3,6 +3,7 @@
 package chat_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -241,4 +242,90 @@ func TestNativeTransportAnnouncesDepartureWhenOwnerExits(t *testing.T) {
 	line := waitForMessage(t, watcher, "signing off")
 	require.Contains(t, line, "<smoke-two>", "departure not announced from the leaver")
 	require.Contains(t, line, "[STATUS]", "departure not announced as a tagged status")
+}
+
+func TestNativeTransportCodexBindingSurvivesTurnOwnerExit(t *testing.T) {
+	if _, err := exec.LookPath("ngircd"); err != nil {
+		t.Skip("scenario requires ngircd")
+	}
+	port := freePort(t)
+	server := startServer(t, port)
+	t.Cleanup(func() { stopCommand(server) })
+	binary := buildChatta(t)
+
+	sender := newSession(t, binary, port, shortHome(t, "sender"), "c-sender")
+	require.NoError(t, sender.Join(context.Background(), "codex-work"))
+	owner := exec.Command("sleep", "300")
+	require.NoError(t, owner.Start())
+	t.Cleanup(func() { _ = owner.Process.Kill() })
+	receiver := services.NewChatService(config.ChatConfig{Home: shortHome(t, "receiver"), Host: "127.0.0.1", Port: port, Channel: "#agents"})
+	receiver.Executable = binary
+	receiver.OwnerLookup = func() (common.OwnerBinding, error) {
+		return common.OwnerBinding{PID: owner.Process.Pid, StartFingerprint: dal.ProcessStart(owner.Process.Pid), Runtime: "codex-turn"}, nil
+	}
+	require.NoError(t, receiver.Start(context.Background(), "c-recv", "smoke", false))
+	t.Cleanup(func() { _ = receiver.Stop(context.Background(), true) })
+	require.NoError(t, receiver.Join(context.Background(), "codex-work"))
+	require.NoError(t, dal.SaveCodexBinding(receiver.Paths.CodexBinding, common.CodexBinding{
+		BindingID: "active-codex-binding", SessionID: receiver.State.SessionID,
+		Endpoint: "unix:///tmp/codex-liveness-fixture.sock", ThreadID: "thread", Enabled: true,
+	}))
+	require.True(t, hasActiveBinding(t, receiver.Paths.CodexBinding, receiver.State.SessionID))
+
+	require.NoError(t, owner.Process.Kill())
+	_ = owner.Wait()
+	require.Eventually(t, func() bool {
+		report := receiver.Health(context.Background(), true)
+		return !report.Owner && report.Supervisor && report.Connected && report.Membership && report.Failure == ""
+	}, 3*time.Second, 50*time.Millisecond, "active Codex binding must retain the IRC supervisor after its turn process exits")
+
+	const secondMessage = "second channel message after Codex turn completion"
+	require.NoError(t, sender.Send(context.Background(), "#codex-work", secondMessage))
+	waitForMessage(t, receiver, secondMessage)
+}
+
+func TestNativeTransportAcceptsDeprecatedIIConfiguration(t *testing.T) {
+	if _, err := exec.LookPath("ngircd"); err != nil {
+		t.Skip("scenario requires ngircd")
+	}
+	port := freePort(t)
+	server := startServer(t, port)
+	t.Cleanup(func() { stopCommand(server) })
+	binary := buildChatta(t)
+	home := shortHome(t, "deprecated-ii")
+	newSession(t, binary, port, home, "old-ii")
+
+	baseEnv := append(os.Environ(),
+		"CHATTA_CHAT_HOME="+home,
+		"CHATTA_CHAT_HOST=127.0.0.1",
+		fmt.Sprintf("CHATTA_CHAT_PORT=%d", port),
+	)
+	for _, test := range []struct {
+		name string
+		env  []string
+		args []string
+	}{
+		{name: "primary environment", env: []string{"CHATTA_CHAT_II=/nonexistent/ii"}},
+		{name: "legacy environment", env: []string{"AGENT_CHAT_II=whatever"}},
+		{name: "flag", args: []string{"--ii", "/nonexistent/ii"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := exec.Command(binary, append([]string{"chat", "session", "status"}, test.args...)...)
+			cmd.Env = append(baseEnv, test.env...)
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &stdout, &stderr
+			require.NoError(t, cmd.Run(), "status stderr: %s", stderr.String())
+			lines := strings.FieldsFunc(stderr.String(), func(r rune) bool { return r == '\n' || r == '\r' })
+			require.Len(t, lines, 1, "stderr: %s", stderr.String())
+			require.Contains(t, lines[0], "warning:")
+			require.Contains(t, lines[0], "deprecated and ignored")
+			require.NotEmpty(t, stdout.String())
+		})
+	}
+}
+
+func hasActiveBinding(t *testing.T, path, sessionID string) bool {
+	t.Helper()
+	binding, err := dal.LoadCodexBinding(path)
+	return err == nil && binding.Enabled && binding.SessionID == sessionID
 }

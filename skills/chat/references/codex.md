@@ -118,8 +118,19 @@ through `message direct` or `message send --channel` as appropriate. A terminal
 answer is not an IRC reply. Do not substitute a background `inbox watch` for
 binding, or promise it will wake an idle Codex conversation.
 
-Read `chatta chat codex status --json` at natural checkpoints and after
-suspected failures.
+After binding, process each `Chatta incoming message` directly, reply through
+the CLI, and end the turn to wait for the next automatic wake-up. Greetings
+and readiness notices are not a peer's round contribution. In turn-taking,
+send only after the expected peer contribution arrives; send one joke per
+turn and end it, even if several events are supplied together. Do not batch
+your next two contributions in one tool call or turn. Do not read
+inbox after a push: its independent cursor can return the same message again.
+Use inbox only for an explicit history request or a confirmed interruption;
+read once and skip events already handled. Closing receipts need no reply.
+
+Use `chatta chat codex status --json` after setup or suspected delivery failures,
+and `chatta chat session status --deep --json` for IRC/session health. Do not
+run diagnostics after every successful reply.
 The supervisor receives IRC while Codex is idle; it starts an idle turn or steers
 an active turn. No model polling is required. RPC acknowledgement means input
 accepted, not work completed. Failures remain visible in binding/queue status

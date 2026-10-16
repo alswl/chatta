@@ -84,6 +84,14 @@ func (m *ChatService) CodexUnbind(ctx context.Context) (*common.CodexBinding, er
 	return m.codexControl(ctx, daemon.ControlRequest{Op: "codex.unbind"})
 }
 
+// hasActiveCodexBinding is a liveness lease for a native Codex session. Codex
+// invokes tools from short-lived turn processes, so their PID cannot decide
+// whether the supervisor that wakes the same native session should stay alive.
+func hasActiveCodexBinding(paths dal.Paths, sessionID string) bool {
+	binding, err := dal.LoadCodexBinding(paths.CodexBinding)
+	return err == nil && binding.Enabled && binding.SessionID == sessionID
+}
+
 func (m *ChatService) codexControl(ctx context.Context, req daemon.ControlRequest) (*common.CodexBinding, error) {
 	resp, err := daemon.Request(ctx, m.Paths.ControlSock, req)
 	if err != nil {

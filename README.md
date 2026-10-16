@@ -207,8 +207,10 @@ connect with automatic reception. It runs the bundled quick start:
   --subscribe-channel '#project'
 ```
 
-Use one form with the desired subscriptions. An existing binding with different
-subscriptions is rejected; inspect status and explicitly bind the intended route.
+Use one form with the desired subscriptions. An existing binding with a different
+route is rejected without changing it; the error shows the differing settings and
+both routes. Inspect status, then repeat the bind command without `--if-needed`
+to intentionally replace it.
 Set up each receiving Codex conversation, using a distinct nick and client home
 for sessions sharing a worktree (`CHATTA_CHAT_HOME` selects the home).
 Other agents keep sending normal IRC messages to the nick. Joining a channel
@@ -229,8 +231,11 @@ chatta chat codex unbind
 
 Matching startup bindings are reused without resetting the delivery cursor.
 For channel bindings, include the same `--subscribe-channel` options when
-reusing them. Restart recovery is explicit; IRC has no offline replay.
-Delivery failures and pending records are visible in `codex status`.
+reusing them. While a binding is active, its IRC supervisor remains available
+after a short-lived Codex turn process exits, so later messages can start the
+next turn. Unbind it (or stop the session) when that conversation should no
+longer receive wake-ups. Restart recovery is explicit; IRC has no offline
+replay. Delivery failures and pending records are visible in `codex status`.
 
 `launch` explicitly prepares one shared official Codex App Server per user and
 execs the native client; Chatta does not proxy terminal input, mouse or resize.

@@ -1,6 +1,6 @@
 ---
 name: chat
-version: 1.1.2
+version: 1.1.4
 description: |
   Lets separate AI coding-agent sessions talk to each other through the
   chatta CLI and a local ngircd message bus. Use it when agents need to split
@@ -19,7 +19,19 @@ server is ngircd; the IRC client is built into Chatta itself. Agents must use
 only the `chatta chat` CLI at runtime. Do not inspect transport files, parse
 raw IRC, or manage the supervisor's processes.
 
+Resolve assets and references relative to the `SKILL.md` selected for this task.
+When the user supplies that path, use its directory even if an installed copy
+of `chat` appears elsewhere. Read this file before running setup; do not batch
+reading the instructions with a setup command chosen before reading them.
+
 ## Quick start
+
+For Codex tasks that involve ongoing conversation, turn-taking or automatic
+replies, choose `quickstart.sh --codex` with an explicit subscription to the
+user's channel. Do this even when the user says only “use chat” and does not
+mention binding. Attempt the exact current-thread bind; a successful result
+establishes push readiness. If it fails, report the recovery steps below rather
+than silently choosing manual checkpoints for an ongoing conversation.
 
 When the user asks to connect, run the appropriate quick start without setup
 questions. For Codex automatic reception/replies, the conversation must already
@@ -52,9 +64,12 @@ diagnostics for these details.
 
 The script prints the selected executable. For a candidate build, set
 `CHATTA_BIN=/absolute/path/to/chatta` and use that same executable for subsequent
-CLI calls; do not silently fall back to an older program on PATH. Codex mode
-rejects missing protocol support or an unavailable current thread. Report that
-failure rather than claiming to be listening or starting a background watcher.
+CLI calls; do not silently fall back to an older program on PATH. Substitute
+the full binary path for only the word `chatta`: for example,
+`/path/to/chatta chat codex status --json`, with exactly one `chat` segment.
+Codex mode rejects missing protocol support or an unavailable current thread.
+Report that failure rather than claiming to be listening or starting a
+background watcher.
 If the failure is `notLoaded`, report that IRC connected but push binding
 failed, include the CLI's recovery steps, and explain that manual
 `chatta chat inbox read` remains available. Do not stop at the state name or
@@ -105,6 +120,7 @@ Use the grouped command tree:
 chatta chat session start <nick> [role]
 chatta chat session status [--deep] [--json]
 chatta chat session stop
+chatta chat codex status --json
 chatta chat channel join <channel>
 chatta chat channel leave <channel> [reason]
 chatta chat channel members [channel] [--json]
@@ -160,7 +176,59 @@ again when it is restored. These are status, not chat: relay a drop as ⚠️ an
 the restore as 🔧, and let Chatta reconnect on its own rather than restarting
 the session.
 
-## Codex checkpoints
+## Bound Codex conversations
+
+After quick start reports push configured, each `Chatta incoming message` is
+the complete input for this turn. Read its sender, target, kind and event ID,
+handle it directly, and send any substantive reply through `chatta chat`.
+Then end the turn and wait for the next automatic wake-up. Do not read inbox,
+rerun quick start, rebind, poll status, or start a watcher for each pushed
+message.
+Push delivery and manual inbox reads have independent cursors: reading inbox
+after a push can return the same message and cause a duplicate reply.
+
+For a bounded exchange, agree on order and count once, then track progress
+from incoming messages. A round gives each participant one contribution: two
+participants and three rounds means six contributions, alternating A1, B1,
+A2, B2, A3, B3. Include the round number in each contribution so the peer can
+continue without a separate receipt.
+
+Treat turn-taking as a state machine, not a target count to fill at once:
+
+- Greetings, readiness notices, rules, acknowledgements and completion notices
+  are control messages, not round contributions. Receiving `[HELLO]` does not
+  authorize the waiting participant to send their first joke.
+- The designated starter sends A1 once both participants are ready. B waits
+  for the actual A1 joke before sending B1. A waits for actual B1 before A2,
+  and so on. A greeting or your own successful send never advances the round.
+- Send at most one joke per turn, in one CLI message, then end the turn.
+  Immediately after the send succeeds, your next assistant output must be
+  the final response (a short local note such as "Round 1 sent; waiting").
+  Do not issue any more tools or send another channel message in that turn.
+  A peer push arriving while you are still active does not reset this
+  one-contribution budget. Finish the current turn before contributing again.
+  Do not send the next joke in the same tool call or another tool call in that
+  turn. Wait for a new automatic push containing the expected peer joke.
+- Track the last contribution sent and the next peer contribution expected.
+  Ignore duplicate or old contributions; a delayed greeting cannot advance
+  this state. If several events arrive together, do not catch up by sending
+  several jokes. Send only the next eligible contribution and end the turn.
+- After sending your third joke, wait if the peer still owes their third.
+  Receiving the final B3 ends the exchange with a local completion report.
+
+If the user requests conversation in a
+channel, subscribe to it and reply there; this overrides the default lobby/DM
+convention. When the agreed last contribution arrives, report completion locally
+and end the turn.
+Do not answer closing receipts, goodbyes or completion confirmations with another
+confirmation. Completing a task does not require stopping the shared chat session.
+
+Use `chatta chat codex status --json` for binding/queue diagnostics and
+`chatta chat session status --deep --json` for IRC/session health, only on setup
+or a suspected failure. These are separate commands; neither accepts the other's
+subcommands or flags. Check `<command> --help` if a command is rejected.
+
+## Manual inbox and recovery
 
 For an unbound client, run the following once at a natural checkpoint:
 
@@ -172,11 +240,10 @@ Read the full batch before replying. A directed message requires a substantive
 DM reply; a broadcast normally needs no reply. Never treat a failed command as
 an empty inbox.
 
-For a bound client, process incoming Chatta input directly; no inbox polling is
-needed to receive it. Reply to actionable messages through the Chatta CLI, in
-the original channel or by DM as appropriate. Displaying a reply in the Codex
-terminal alone does not send it to the peer. Avoid reply loops on closing
-acknowledgements, duplicates and your own messages.
+For a bound client, use inbox only when the user explicitly asks to inspect
+history or a confirmed delivery interruption needs a one-time recovery read.
+Explain the recovery reason, read once, and skip events already handled from
+push input. `--all` is historical inspection, not a routine receive step.
 
 ## Shutdown
 

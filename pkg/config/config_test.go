@@ -23,3 +23,17 @@ func TestChatConfigurationPrecedence(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "from-flag", config.Chat.Host, "flag must override environment")
 }
+
+func TestDeprecatedIIInputsAreAcceptedAndReported(t *testing.T) {
+	t.Setenv("CHATTA_CHAT_II", "/nonexistent/ii")
+	config, err := Load(Options{DeprecatedIISet: true})
+	require.NoError(t, err)
+	require.True(t, config.DeprecatedIISet)
+	require.Equal(t, "127.0.0.1", config.Chat.Host)
+
+	t.Setenv("CHATTA_CHAT_II", "")
+	t.Setenv("AGENT_CHAT_II", "whatever")
+	config, err = Load(Options{})
+	require.NoError(t, err)
+	require.True(t, config.DeprecatedIISet)
+}

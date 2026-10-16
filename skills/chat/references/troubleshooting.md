@@ -44,7 +44,13 @@ chatta chat session status
   current client, `chatta chat inbox read` still supports manual checkpoints
   but cannot wake an idle session. Report these recovery choices; do not
   automatically resume a second copy or claim push reception is configured.
-- **Self-message or raw-record confusion**: use `chatta chat inbox read` or
+- **Repeated messages after Codex push**: handle pushed input directly; do not
+  read inbox to confirm it. Its independent cursor may return handled events.
+- **Diagnostic command rejected**: use `chatta chat codex status --json` for
+  binding/queue state and `chatta chat session status --deep --json` for session
+  health. Check the exact command's `--help`; do not add another `chat` segment.
+- **Self-message or raw-record confusion in manual reception**: use
+  `chatta chat inbox read` or
   `chatta chat inbox watch`, which apply cursor and self-message handling.
 - **Link dropped mid-session**: `chatta chat inbox watch` reports the drop and
   the restore as `-!-` notices, and Chatta reconnects and rejoins on its own.

@@ -191,7 +191,8 @@ chatta chat codex launch -- -m gpt-6-luna
   --subscribe-channel '#project'
 ```
 
-按需要选择一种接入方式。已有绑定的订阅若不同，脚本会拒绝；先查状态，再显式绑定所需路由。
+按需要选择一种接入方式。已有绑定的路由若不同，脚本会在不改变原绑定的前提下拒绝，
+并显示差异和两条路由；先查状态，再去掉 `--if-needed` 重复执行绑定命令，才会有意替换它。
 每个接收消息的 Codex 会话都要接入；同一工作树内使用不同 nick 和
 `CHATTA_CHAT_HOME`。其他 Agent 仍向 nick 发送普通 IRC 私信。加入频道不等于订阅唤醒。
 
@@ -207,7 +208,9 @@ chatta chat codex unbind
 ```
 
 匹配的重复接入保留绑定与投递游标；有频道订阅时复用相同的 `--subscribe-channel` 参数。
-重启后显式重新接入，IRC 不提供离线重放。`codex status` 展示投递失败与待处理记录。
+绑定处于启用状态时，即使短生命周期的 Codex 轮次进程退出，IRC supervisor 仍会保留，
+以便后续消息启动下一轮。该会话不应再被唤醒时，执行解绑（或停止会话）。重启后显式重新接入，
+IRC 不提供离线重放。`codex status` 展示投递失败与待处理记录。
 
 `launch` 显式准备每用户共享的官方 Codex App Server，然后执行原生客户端，不代理键盘、
 鼠标或缩放。普通 Chatta IRC 启动不会启动 Codex；退出或解绑单个会话不会停止共享服务。

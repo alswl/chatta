@@ -95,6 +95,21 @@ func TestCodexBindPersistsExplicitGroupRoutingOptions(t *testing.T) {
 	require.Contains(t, invalid.Error, "must start with #")
 }
 
+func TestActiveCodexBindingKeepsItsSessionAliveAcrossTurnProcessExit(t *testing.T) {
+	paths := dal.Paths{CodexBinding: filepath.Join(t.TempDir(), "binding.json")}
+	require.False(t, hasActiveCodexBinding(paths, "session"))
+	binding := common.CodexBinding{BindingID: "binding", Endpoint: "unix:///tmp/app.sock", ThreadID: "thread", Enabled: true}
+	binding.SessionID = "other"
+	require.NoError(t, dal.SaveCodexBinding(paths.CodexBinding, binding))
+	require.False(t, hasActiveCodexBinding(paths, "session"))
+	binding.SessionID, binding.Enabled = "session", false
+	require.NoError(t, dal.SaveCodexBinding(paths.CodexBinding, binding))
+	require.False(t, hasActiveCodexBinding(paths, "session"))
+	binding.Enabled = true
+	require.NoError(t, dal.SaveCodexBinding(paths.CodexBinding, binding))
+	require.True(t, hasActiveCodexBinding(paths, "session"))
+}
+
 func TestCodexStatusExposesBlockedQueueAndClearsAfterRepair(t *testing.T) {
 	dir := t.TempDir()
 	messages := filepath.Join(dir, "messages.jsonl")
@@ -501,7 +516,12 @@ func TestCodexStartupReusePreservesPendingCursorAndRejectsRouteChange(t *testing
 	request.SubscribedChannels = nil
 	conflict := h.Handle(request)
 	require.False(t, conflict.OK)
+	require.Contains(t, conflict.Error, "conflicts with --if-needed")
 	require.Contains(t, conflict.Error, "binding unchanged")
+	require.Contains(t, conflict.Error, "differences: subscribed-channels")
+	require.Contains(t, conflict.Error, "existing route: thread=\"thread\"")
+	require.Contains(t, conflict.Error, "requested route: thread=\"thread\"")
+	require.Contains(t, conflict.Error, "repeat this bind command without --if-needed")
 	current, err := dal.LoadCodexBinding(h.m.Paths.CodexBinding)
 	require.NoError(t, err)
 	require.Equal(t, *first.Codex, current)

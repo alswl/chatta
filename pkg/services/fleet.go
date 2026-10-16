@@ -59,7 +59,9 @@ func (m *ChatService) Survey(ctx context.Context) ([]common.ClientSurvey, error)
 			clientState = "alive"
 		}
 		eligibility := "live owner"
-		if ownerState != "alive" {
+		if ownerState != "alive" && hasActiveCodexBinding(paths, st.SessionID) {
+			eligibility = "active Codex binding"
+		} else if ownerState != "alive" {
 			eligibility = "owner ended"
 		}
 		rows = append(rows, common.ClientSurvey{ClientHome: filepath.Dir(path), SessionSummary: st.Nick, OwnerState: ownerState, SupervisorState: supervisorState, ClientProcessState: clientState, CleanupEligibility: eligibility})
@@ -131,7 +133,7 @@ func (m *ChatService) GCReport(ctx context.Context, dryRun, prune bool) ([]commo
 		if dryRun {
 			continue
 		}
-		if row.CleanupEligibility == "live owner" {
+		if row.CleanupEligibility == "live owner" || row.CleanupEligibility == "active Codex binding" {
 			continue
 		}
 		st, err := dal.LoadState(filepath.Join(row.ClientHome, "state.json"))

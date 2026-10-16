@@ -14,6 +14,7 @@ import (
 var (
 	configFile string
 	verbose    bool
+	legacyII   string
 
 	appConfig config.Config
 )
@@ -31,6 +32,8 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file path")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
+	rootCmd.PersistentFlags().StringVar(&legacyII, "ii", "", "deprecated external IRC client path")
+	_ = rootCmd.PersistentFlags().MarkHidden("ii")
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.PersistentPreRunE = func(_ *cobra.Command, _ []string) error {
 		var err error
@@ -42,11 +45,15 @@ func init() {
 				Home: chatHome, Host: chatHost, Port: chatPort,
 				Channel: chatChannel,
 			},
-			ChatHomeSet:    chatCmd.PersistentFlags().Changed("home"),
-			ChatHostSet:    chatCmd.PersistentFlags().Changed("host"),
-			ChatPortSet:    chatCmd.PersistentFlags().Changed("port"),
-			ChatChannelSet: chatCmd.PersistentFlags().Changed("channel"),
+			ChatHomeSet:     chatCmd.PersistentFlags().Changed("home"),
+			ChatHostSet:     chatCmd.PersistentFlags().Changed("host"),
+			ChatPortSet:     chatCmd.PersistentFlags().Changed("port"),
+			ChatChannelSet:  chatCmd.PersistentFlags().Changed("channel"),
+			DeprecatedIISet: rootCmd.PersistentFlags().Changed("ii"),
 		})
+		if err == nil && appConfig.DeprecatedIISet {
+			_, _ = fmt.Fprintln(os.Stderr, "warning: --ii, CHATTA_CHAT_II, and AGENT_CHAT_II are deprecated and ignored")
+		}
 		return err
 	}
 }

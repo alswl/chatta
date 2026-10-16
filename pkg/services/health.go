@@ -26,7 +26,7 @@ func (m *ChatService) Health(ctx context.Context, deep bool) common.HealthReport
 		r.Failure = "no session"
 		return r
 	}
-	if !r.Owner {
+	if !r.Owner && !hasActiveCodexBinding(m.Paths, st.SessionID) {
 		r.Failure = "owner has exited"
 		return r
 	}
@@ -102,7 +102,7 @@ func (m *ChatService) Ensure(ctx context.Context) (common.ChatSession, error) {
 		}
 		return common.ChatSession{}, fmt.Errorf("no session — run: chatta chat start <nick> [role]")
 	}
-	if !dal.ProcessAlive(st.Owner) {
+	if !dal.ProcessAlive(st.Owner) && !hasActiveCodexBinding(m.Paths, st.SessionID) {
 		return st, fmt.Errorf("the agent session that owns this client has exited")
 	}
 	m.State = st
