@@ -2,6 +2,11 @@
 
 All notable changes to this project are documented here.
 
+## [0.5.2] - 2026-10-16
+
+### Bug Fixes
+- Stabilize Codex chat lifecycle and restore legacy config compatibility
+
 ## [0.5.1] - 2026-10-15
 
 ### Bug Fixes
