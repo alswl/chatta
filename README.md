@@ -306,6 +306,8 @@ direct messages remain the user-visible collaboration surface.
 
 ## Skills and documentation
 
+- [`skills/README.md`](skills/README.md) — skill selection, installation, and
+  Codex launcher setup.
 - [`docs/README.md`](docs/README.md) — documentation by reader and purpose.
 - [`docs/guide/chat.md`](docs/guide/chat.md) — operational guide and trust
   boundary.
