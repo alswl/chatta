@@ -120,7 +120,9 @@ The installer downloads a checksummed binary for macOS or Linux on `amd64` or
 curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh
 ```
 
-Pin a release or choose an install directory when needed:
+By default, the installer creates `~/.local/bin` and installs `chatta` there.
+Add it to your PATH if needed: `export PATH="$HOME/.local/bin:$PATH"`.
+Pin a release or override the install directory when needed:
 
 ```sh
 CHATTA_VERSION=v0.4.1 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
@@ -134,10 +136,11 @@ Requires Go 1.22 or newer.
 ```sh
 git clone https://github.com/alswl/chatta.git
 cd chatta
-go install ./cmd/chatta
+GOBIN="$HOME/.local/bin" go install ./cmd/chatta
 ```
 
 The repository also provides `make build` and `make install` for local builds.
+`make install` defaults to `~/.local/bin`; use `INSTALL_DIR` to override it.
 
 ## Command overview
 

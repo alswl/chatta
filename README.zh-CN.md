@@ -109,7 +109,8 @@ npx skills add alswl/chatta --skill chat --skill chat-refresh \
 curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh
 ```
 
-指定版本或安装目录：
+默认创建 `~/.local/bin` 并将 `chatta` 安装到该目录。若尚未加入 PATH，
+执行 `export PATH="$HOME/.local/bin:$PATH"`。需要时可指定版本或覆盖安装目录：
 
 ```sh
 CHATTA_VERSION=v0.4.1 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
@@ -123,10 +124,11 @@ CHATTA_VERSION=v0.4.1 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
 ```sh
 git clone https://github.com/alswl/chatta.git
 cd chatta
-go install ./cmd/chatta
+GOBIN="$HOME/.local/bin" go install ./cmd/chatta
 ```
 
-仓库也提供 `make build` 和 `make install` 目标。
+仓库也提供 `make build` 和 `make install` 目标。`make install` 默认安装到
+`~/.local/bin`，可通过 `INSTALL_DIR` 覆盖。
 
 ## 命令概览
 

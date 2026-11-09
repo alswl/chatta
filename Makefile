@@ -8,6 +8,8 @@ TARGETS := chatta
 ROOT := github.com/alswl/chatta
 CMD_DIR := ./cmd
 OUTPUT_DIR := ./bin
+# Prefer a user-owned install directory; callers can override INSTALL_DIR.
+INSTALL_DIR ?= $(HOME)/.local/bin
 BUILD_DIR := ./build
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 

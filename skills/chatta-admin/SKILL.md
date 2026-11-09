@@ -33,8 +33,9 @@ curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh
 ```
 
 The installer selects a supported macOS or Linux `amd64`/`arm64` release,
-verifies `checksums.txt`, and reports the installed version. To pin a release
-or choose the destination explicitly:
+verifies `checksums.txt`, and reports the installed version. It creates
+`~/.local/bin` and installs `chatta` there by default. To pin a release or
+override the destination explicitly:
 
 ```bash
 CHATTA_VERSION=v0.2.0 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
