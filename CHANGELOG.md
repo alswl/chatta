@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## [0.5.3] - 2026-11-09
+
+### Documentation
+- Organize reader-focused documentation
+
+### Features
+- Support safe Codex launch adapters and user-local installation
+
 ## [0.5.2] - 2026-10-16
 
 ### Bug Fixes
