@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,6 +31,10 @@ func launchCodex(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 && args[0] == "--" {
 		args = args[1:]
 	}
+	prefix, err := codexLaunchCommandArgs(os.Getenv("CHATTA_CODEX_COMMAND_ARGS"))
+	if err != nil {
+		return err
+	}
 	// Shell functions require an executable wrapper; never evaluate a command string.
 	executable := os.Getenv("CHATTA_CODEX_COMMAND")
 	if executable == "" {
@@ -39,14 +44,15 @@ func launchCodex(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("resolve Codex executable (shell functions are not executables): %w", err)
 	}
+	argv := append([]string{executable}, prefix...)
 	if !codexLaunchInteractive(args) {
-		return syscall.Exec(path, append([]string{executable}, args...), os.Environ())
+		return syscall.Exec(path, append(argv, args...), os.Environ())
 	}
 	endpoint := os.Getenv("CHATTA_CODEX_ENDPOINT")
 	explicitRemote, hasRemote := codexLaunchRemote(args)
 	if hasRemote {
 		if explicitRemote == "" {
-			return syscall.Exec(path, append([]string{executable}, args...), os.Environ())
+			return syscall.Exec(path, append(argv, args...), os.Environ())
 		}
 		if endpoint != "" && endpoint != explicitRemote {
 			return fmt.Errorf("--remote conflicts with CHATTA_CODEX_ENDPOINT")
@@ -57,13 +63,32 @@ func launchCodex(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	argv := append([]string{executable}, args...)
 	if !hasRemote {
-		argv = append([]string{executable, "--remote", status.Endpoint}, args...)
+		argv = append(argv, "--remote", status.Endpoint)
 	}
+	argv = append(argv, args...)
 	// Replacing this process leaves terminal input, resize, signals and exit
 	// status under the native client, with no PTY or RPC proxy in between.
 	return syscall.Exec(path, argv, os.Environ())
+}
+
+func codexLaunchCommandArgs(value string) ([]string, error) {
+	if value == "" {
+		return nil, nil
+	}
+	var values []any
+	if err := json.Unmarshal([]byte(value), &values); err != nil || values == nil {
+		return nil, fmt.Errorf("CHATTA_CODEX_COMMAND_ARGS must be a JSON array of strings")
+	}
+	args := make([]string, len(values))
+	for i, value := range values {
+		arg, ok := value.(string)
+		if !ok || strings.ContainsRune(arg, '\x00') {
+			return nil, fmt.Errorf("CHATTA_CODEX_COMMAND_ARGS[%d] must be a string without NUL bytes", i)
+		}
+		args[i] = arg
+	}
+	return args, nil
 }
 
 // Only interactive entry points need the shared server. Skip option values

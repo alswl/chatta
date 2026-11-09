@@ -109,7 +109,8 @@ npx skills add alswl/chatta --skill chat --skill chat-refresh \
 curl -fsSL https://raw.githubusercontent.com/alswl/chatta/master/install.sh | sh
 ```
 
-指定版本或安装目录：
+默认创建 `~/.local/bin` 并将 `chatta` 安装到该目录。若尚未加入 PATH，
+执行 `export PATH="$HOME/.local/bin:$PATH"`。需要时可指定版本或覆盖安装目录：
 
 ```sh
 CHATTA_VERSION=v0.4.1 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
@@ -123,10 +124,11 @@ CHATTA_VERSION=v0.4.1 CHATTA_INSTALL_DIR="$HOME/.local/bin" \
 ```sh
 git clone https://github.com/alswl/chatta.git
 cd chatta
-go install ./cmd/chatta
+GOBIN="$HOME/.local/bin" go install ./cmd/chatta
 ```
 
-仓库也提供 `make build` 和 `make install` 目标。
+仓库也提供 `make build` 和 `make install` 目标。`make install` 默认安装到
+`~/.local/bin`，可通过 `INSTALL_DIR` 覆盖。
 
 ## 命令概览
 
@@ -181,6 +183,17 @@ chatta chat session stop
 ```sh
 chatta chat codex launch -- -m gpt-6-luna
 ```
+
+若使用需要固定前置参数的 launcher：
+
+```sh
+CHATTA_CODEX_COMMAND=anything CHATTA_CODEX_COMMAND_ARGS='["--ccc"]' \
+  chatta chat codex launch -- -m gpt-6-luna
+```
+
+`CHATTA_CODEX_COMMAND` 仍只指定一个可执行文件；`CHATTA_CODEX_COMMAND_ARGS`
+使用 JSON 字符串数组，按原样放在 `--remote <endpoint>` 和原始 Codex 参数之前，
+不经过 shell 求值。
 
 进入该会话后，让 [Chatta Skill](skills/chat/SKILL.md) 接入并启用自动收信。Skill 使用：
 
@@ -256,6 +269,7 @@ Codex 0.162.1 的 remote resume 不支持权限覆盖参数，Chatta 保留错�
 
 ## 技能和文档
 
+- [`skills/README.md`](skills/README.md) — 技能选择、安装和 Codex launcher 配置。
 - [`docs/README.md`](docs/README.md) — 按读者和目的组织的文档入口。
 - [`docs/guide/chat.md`](docs/guide/chat.md) — 操作指南和信任边界。
 - [`docs/manual/chat-cli.md`](docs/manual/chat-cli.md) — 命令和配置参考。

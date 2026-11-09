@@ -5,7 +5,7 @@
 #
 # Optional environment variables:
 #   CHATTA_VERSION      A release tag to install (for example v0.1.0).
-#   CHATTA_INSTALL_DIR  Directory receiving the binary.
+#   CHATTA_INSTALL_DIR  Directory receiving the binary (default: $HOME/.local/bin).
 set -eu
 
 REPO="alswl/chatta"
@@ -76,18 +76,7 @@ log "Checksum verified"
 tar -xzf "$tmpdir/$asset" -C "$tmpdir" "${PROJECT}-${OS}-${ARCH}" \
 	|| die "Release archive has an unexpected layout."
 
-if [ -n "${CHATTA_INSTALL_DIR:-}" ]; then
-	install_dir="$CHATTA_INSTALL_DIR"
-else
-	install_dir=""
-	for candidate in /opt/homebrew/bin "$HOME/.local/bin" /usr/local/bin "$HOME/bin"; do
-		if [ -d "$candidate" ] && [ -w "$candidate" ]; then
-			install_dir="$candidate"
-			break
-		fi
-	done
-fi
-[ -n "$install_dir" ] || die "No writable install directory found. Set CHATTA_INSTALL_DIR, for example: CHATTA_INSTALL_DIR=\"\$HOME/.local/bin\" sh -c 'curl -fsSL ${INSTALL_URL} | sh'."
+install_dir="${CHATTA_INSTALL_DIR:-$HOME/.local/bin}"
 mkdir -p "$install_dir"
 [ -w "$install_dir" ] || die "Install directory is not writable: $install_dir"
 
