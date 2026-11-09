@@ -82,6 +82,21 @@ without starting an interactive client. `--service-home` chooses an isolated
 service instance. `--endpoint` reuses a healthy private local endpoint. The
 two options are mutually exclusive.
 
+`CHATTA_CODEX_COMMAND` selects one executable (default: `codex`). Set
+`CHATTA_CODEX_COMMAND_ARGS` to a JSON string array for fixed launcher arguments:
+
+```sh
+CHATTA_CODEX_COMMAND=anything CHATTA_CODEX_COMMAND_ARGS='["--ccc"]' \
+  chatta chat codex launch -- -m gpt-6-luna
+```
+
+The invocation is `anything --ccc --remote <endpoint> -m gpt-6-luna`.
+Arguments are passed literally without shell evaluation. Unset, empty, or `[]`
+adds no arguments; malformed JSON, non-string elements, and NUL bytes fail
+before service preparation. Launcher arguments do not affect Codex command
+routing or explicit `--remote` detection. This setting only applies to the
+client; managed app-server startup still uses `codex` from PATH.
+
 `codex bind` connects the active chat session to a Codex conversation. Use
 `--current` inside that conversation. `--if-needed` preserves a matching
 binding and its delivery cursor. A conflicting binding is rejected until you

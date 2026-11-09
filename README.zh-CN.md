@@ -182,6 +182,17 @@ chatta chat session stop
 chatta chat codex launch -- -m gpt-6-luna
 ```
 
+若使用需要固定前置参数的 launcher：
+
+```sh
+CHATTA_CODEX_COMMAND=anything CHATTA_CODEX_COMMAND_ARGS='["--ccc"]' \
+  chatta chat codex launch -- -m gpt-6-luna
+```
+
+`CHATTA_CODEX_COMMAND` 仍只指定一个可执行文件；`CHATTA_CODEX_COMMAND_ARGS`
+使用 JSON 字符串数组，按原样放在 `--remote <endpoint>` 和原始 Codex 参数之前，
+不经过 shell 求值。
+
 进入该会话后，让 [Chatta Skill](skills/chat/SKILL.md) 接入并启用自动收信。Skill 使用：
 
 ```sh

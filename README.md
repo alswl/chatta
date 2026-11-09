@@ -197,6 +197,17 @@ Start a native Codex conversation:
 chatta chat codex launch -- -m gpt-6-luna
 ```
 
+For a launcher with fixed leading arguments:
+
+```sh
+CHATTA_CODEX_COMMAND=anything CHATTA_CODEX_COMMAND_ARGS='["--ccc"]' \
+  chatta chat codex launch -- -m gpt-6-luna
+```
+
+`CHATTA_CODEX_COMMAND` remains one executable. `CHATTA_CODEX_COMMAND_ARGS` is a
+JSON string array, passed literally before `--remote <endpoint>` and the
+original Codex arguments, without shell evaluation.
+
 Inside that conversation, ask the [Chatta Skill](skills/chat/SKILL.md) to
 connect with automatic reception. It runs the bundled quick start:
 

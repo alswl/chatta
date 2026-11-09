@@ -39,9 +39,27 @@ Optional environment variables: `CHATTA_CODEX_ENDPOINT` selects an already
 running private local endpoint; `CHATTA_CODEX_SERVICE_HOME` selects an isolated
 managed service directory (mutually exclusive). `CHATTA_CODEX_COMMAND` selects
 an executable or executable wrapper, not a command string or shell function.
-A wrapper must forward `"$@"`. Existing shell functions such as `codex-luna`
-are not executables; use the explicit `-m gpt-6-luna` argument or call the
-function yourself with `--remote <endpoint>`. Chatta does not modify PATH.
+For a launcher that needs fixed leading arguments, set
+`CHATTA_CODEX_COMMAND_ARGS` to a JSON array of strings:
+
+```sh
+CHATTA_CODEX_COMMAND=anything CHATTA_CODEX_COMMAND_ARGS='["--ccc"]' \
+  chatta chat codex launch -- -m gpt-6-luna
+```
+
+Chatta invokes `anything --ccc --remote <endpoint> -m gpt-6-luna` without
+a shell. The array preserves spaces, empty arguments, and special characters
+literally; it does not expand variables, globs, or command substitutions. An
+unset or empty value, or `[]`, adds no arguments. Invalid JSON, non-string
+elements, and NUL bytes are rejected before preparing the service. Prefix
+arguments belong to the launcher and do not affect Codex subcommand or
+`--remote` detection. Explicit Codex `--remote` arguments keep their existing
+behavior; noninteractive commands receive the prefix without an added remote.
+This setting only adapts the launched client; the managed app-server still
+uses `codex` from PATH. A wrapper must forward `"$@"`. Existing shell functions
+such as `codex-luna` are not executables; use the explicit `-m gpt-6-luna`
+argument or call the function yourself with `--remote <endpoint>`.
+Chatta does not modify PATH.
 
 Inside the resulting Codex conversation, use the Skill's quick-start script:
 
